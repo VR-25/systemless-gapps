@@ -1,0 +1,675 @@
+#!/sbin/sh
+
+# Detect whether in boot mode
+ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true || BOOTMODE=false
+
+# Default permissions
+umask 022
+
+##########################################################################################
+# Functions
+##########################################################################################
+
+ui_print() {
+  if $BOOTMODE; then
+    echo "$1"
+  else 
+    echo -n -e "ui_print $1\n" >> /proc/self/fd/$OUTFD
+    echo -n -e "ui_print\n" >> /proc/self/fd/$OUTFD
+  fi
+}
+
+# Not a function, but... meh! -- Who cares?
+if $BOOTMODE; then ui_print " "
+	ui_print "(i) BOOTMODE install is not supported"
+	ui_print "- Reboot into recovery & try again"
+	ui_print " "
+	exit 0
+fi
+
+grep_prop() {
+  REGEX="s/^$1=//p"
+  shift
+  FILES=$@
+  if [ -z "$FILES" ]; then
+    FILES='/system/build.prop'
+  fi
+  cat $FILES 2>/dev/null | sed -n "$REGEX" | head -n 1
+}
+
+is_mounted() {
+  if [ ! -z "$2" ]; then
+    cat /proc/mounts | grep $1 | grep $2, >/dev/null
+  else
+    cat /proc/mounts | grep $1 >/dev/null
+  fi
+  return $?
+}
+
+mount_image() {
+  if [ ! -d "$2" ]; then
+    mount -o rw,remount rootfs /
+    mkdir -p $2 2>/dev/null
+    ($BOOTMODE) && mount -o ro,remount rootfs /
+    [ ! -d "$2" ] && return 1
+  fi
+  if (! is_mounted $2); then
+    LOOPDEVICE=
+    for LOOP in 0 1 2 3 4 5 6 7; do
+      if (! is_mounted $2); then
+        LOOPDEVICE=/dev/block/loop$LOOP
+        if [ ! -f "$LOOPDEVICE" ]; then
+          mknod $LOOPDEVICE b 7 $LOOP 2>/dev/null
+        fi
+        losetup $LOOPDEVICE $1
+        if [ "$?" -eq "0" ]; then
+          mount -t ext4 -o loop $LOOPDEVICE $2
+          if (! is_mounted $2); then
+            /system/bin/toolbox mount -t ext4 -o loop $LOOPDEVICE $2
+          fi
+          if (! is_mounted $2); then
+            /system/bin/toybox mount -t ext4 -o loop $LOOPDEVICE $2
+          fi
+        fi
+        if (is_mounted $2); then
+          ui_print "* Mounting $1 to $2"
+          break;
+        fi
+      fi
+    done
+  fi
+}
+
+set_perm() {
+  chown $2:$3 $1 || exit 1
+  chmod $4 $1 || exit 1
+  if [ ! -z "$5" ]; then
+    chcon $5 $1 2>/dev/null
+  else
+    chcon 'u:object_r:system_file:s0' $1 2>/dev/null
+  fi
+}
+
+set_perm_recursive() {
+  find $1 -type d 2>/dev/null | while read dir; do
+    set_perm $dir $2 $3 $4 $6
+  done
+  find $1 -type f 2>/dev/null | while read file; do
+    set_perm $file $2 $3 $5 $6
+  done
+}
+
+mktouch() {
+  mkdir -p ${1%/*}
+  if [ -z "$2" ]; then
+    touch $1
+  else
+    echo $2 > $1
+  fi
+  chmod 644 $1
+}
+
+request_size_check() {
+  reqSizeM=`unzip -l "$1" 2>/dev/null | tail -n 1 | awk '{ print $1 }'`
+  reqSizeM=$((reqSizeM / 1048576 + 1))
+}
+
+image_size_check() {
+  e2fsck -yf $1
+  curBlocks=`e2fsck -n $1 2>/dev/null | grep $1 | cut -d, -f3 | cut -d\  -f2`;
+  curUsedM=`echo "$curBlocks" | cut -d/ -f1`
+  curSizeM=`echo "$curBlocks" | cut -d/ -f1`
+  curFreeM=$(((curSizeM - curUsedM) * 4 / 1024))
+  curUsedM=$((curUsedM * 4 / 1024 + 1))
+  curSizeM=$((curSizeM * 4 / 1024))
+}
+
+shrink_img() {
+	image_size_check $IMG
+	NEWDATASIZE=$((curUsedM / 32 * 32 + 32))
+	if [ "$curSizeM" -gt "$NEWDATASIZE" ]; then
+	  ui_print "* Shrinking $IMG to ${NEWDATASIZE}M"
+	  resize2fs $IMG ${NEWDATASIZE}M
+	fi
+}
+
+
+exxit() {
+	if [ "$1" = "0" ]; then
+		if [ -f /data/_u ]; then
+			ui_print "* Uninstalling Magic GApps"
+			rm -rf $MODPATH
+			umount /vendor
+			umount /system
+			umount $MOUNTPATH
+			losetup -d $LOOPDEVICE
+			rmdir $MOUNTPATH
+			rm -f /data/_u
+			shrink_img
+			ui_print "* Done"
+			exit 0
+		fi
+		ui_print "* (i) No OpenGApps update found"
+		ui_print "- Run \"touch /data/_r\" to reinstall"
+		ui_print "-- or \"touch /data/_u\" to uninstall"
+		signature_spoofing_patch
+		umount /vendor
+		umount /system
+		umount $MOUNTPATH
+		losetup -d $LOOPDEVICE
+		rmdir $MOUNTPATH
+		rm -f /data/_r
+		shrink_img
+		exit 0
+		
+	elif [ "$1" = "1" ]; then
+		ui_print "(i) No compatible \"open_gapps-*.zip\" archive found"
+		ui_print "- Check to make sure the target file exists &/or isn't corrupted"
+		ui_print "- You can set an alternate search path with \"echo PATH > /data/_d\""
+		{ umount /vendor
+		umount /system
+		umount $MOUNTPATH
+		losetup -d $LOOPDEVICE
+		rmdir $MOUNTPATH; } 2>/dev/null
+		shrink_img
+		exit 0
+		
+	else ui_print "(!) Signature spoofing patch failed"
+		ui_print "- Error message: $@"
+		umount /vendor
+		umount /system
+		umount $MOUNTPATH
+		losetup -d $LOOPDEVICE
+		rmdir $MOUNTPATH
+		shrink_img
+		exit 1
+	fi
+} 2>/dev/null
+
+
+
+signature_spoofing_patch() {
+	if [ -f /data/_s ]; then
+		ui_print "* Applying signature spoofing patch"
+		BASEDIR=$INSTALLER/bin
+		ANDROID_DATA=$BASEDIR
+		PATH=$PATH:/system/bin:/system/xbin
+		PATCH_CORE=core_services.jar.dex
+
+		
+		apply_patch () {
+			if [ "$SDK_VERSION" -gt 21 ]; then
+				mkdir -p "$1"
+			fi
+
+			LD_LIBRARY_PATH=$C_LD \
+				/system/bin/dalvikvm \
+					-Xbootclasspath:$BOOTCLASSES \
+					-classpath $BASEDIR/dexpatcher.dex \
+					lanchon.dexpatcher.Main \
+					$DEX_OPTS --api-level $SDK_VERSION \
+					--verbose --output $1 $2 $3 || \
+						exxit $4
+
+			[ -f $1/classes.dex ] || exxit $4
+
+			LD_LIBRARY_PATH=$C_LD \
+				$ZIPB -d $2 'classes*.dex' || \
+					exxit "zip failed"
+
+			LD_LIBRARY_PATH=$C_LD \
+				$ZIPB -j $2 $1/classes*.dex || \
+					exxit "zip failed"
+
+			rm -rf $1
+		}
+
+		
+		# prepare patcher
+		cd $BASEDIR
+		chmod 755 zip.arm zip.x86 file.arm file.x86
+
+		
+		# detect sdk
+		SDK_VERSION=$(awk -F= '/^ro.build.version.sdk/{print $2}' /system/build.prop)
+
+		if [ $SDK_VERSION -gt 26 ]; then
+			exxit "Android versions beyond Oreo are not yet supported"
+		fi
+
+		if [ $SDK_VERSION -lt 16 ]; then
+			exxit "Android versions before Jelly Bean are not supported"
+		fi
+
+		if [ $SDK_VERSION -lt 24 ]; then
+			PATCH_HOOK="hook_4.1-6.0_services.jar.dex"
+			PATCH_UI_SERVICES="ui_4.1-6.0_services.jar.dex"
+			PATCH_UI_SETTINGS="ui_4.1-6.0_Settings.apk.dex"
+		else
+			PATCH_HOOK="hook_7.0-8.0_services.jar.dex"
+			PATCH_UI_SERVICES="ui_7.0-8.0_services.jar.dex"
+			PATCH_UI_SETTINGS="ui_7.0-8.0_Settings.apk.dex"
+		fi
+
+		if [ $SDK_VERSION -gt 21 ]; then
+			DEX_OPTS="--multi-dex-threaded"
+		fi
+
+
+		# detect odex
+		if [ -n "$(find '/system/app/' -name '*.odex')" ]; then
+			exxit "odexed ROMs are not supported"
+		fi
+
+
+		# detect architecture
+		case $ARCH in
+			arm | arm64 )
+					FILE=$BASEDIR/file.arm
+					ZIPB=$BASEDIR/zip.arm
+			;;
+			x86 | x86_64 )
+					FILE=$BASEDIR/file.x86
+					ZIPB=$BASEDIR/zip.x86
+			;;
+		esac
+
+
+		# detect dalvik
+		if [ ! -f /system/bin/dalvikvm ]; then
+			exxit "/system/bin/dalvikvm does not exist"
+		else DALVIK_ARCH=$($FILE -m $BASEDIR/magic.mgc -L /system/bin/dalvikvm)
+		fi
+
+		case $DALVIK_ARCH in
+			*32-bit* )
+				C_LD="/system/lib:/system/vendor/lib:$LD_LIBRARY_PATH"
+			;;
+			*64-bit* )
+				C_LD="/system/lib64:/system/vendor/lib64:/system/lib:/vendor/lib:$LD_LIBRARY_PATH"
+			;;
+			* )
+				exxit "could not detect dalvikvm architecture"
+			;;
+		esac
+
+		
+		# create dalvik cache
+		for jar in /system/framework/*.jar; do
+			BOOTCLASSES=$BOOTCLASSES:$jar
+		done
+
+		LD_LIBRARY_PATH=$C_LD \
+			/system/bin/dalvikvm \
+				-Xbootclasspath:$BOOTCLASSES \
+				-classpath $BASEDIR/bin.dex \
+				lanchon.bin.Main --help >/dev/null
+
+				
+		# Apply signature spoofing patch
+		cp /system/framework/services.jar \
+			$BASEDIR/services.jar || \
+			exxit "failed to copy services.jar"
+
+		apply_patch $BASEDIR/services.jar-hook \
+			$BASEDIR/services.jar \
+			$BASEDIR/$PATCH_HOOK \
+			|| exxit "failed to apply $PATCH_HOOK"
+
+		apply_patch $BASEDIR/services.jar-hook-core \
+			$BASEDIR/services.jar \
+			$BASEDIR/$PATCH_CORE \
+			|| exxit "failed to apply $PATCH_CORE"
+
+
+		# install services.jar
+		cp $BASEDIR/services.jar $MODPATH/system/framework \
+			|| exxit "failed to install services.jar"
+	fi
+}
+
+
+
+##########################################################################################
+# Flashable update-binary preparation
+##########################################################################################
+
+OUTFD=$2
+ZIP=$3
+
+readlink /proc/$$/fd/$OUTFD 2>/dev/null | grep /tmp >/dev/null
+if [ "$?" -eq "0" ]; then
+  OUTFD=0
+
+  for FD in `ls /proc/$$/fd`; do
+    readlink /proc/$$/fd/$FD 2>/dev/null | grep pipe >/dev/null
+    if [ "$?" -eq "0" ]; then
+      ps | grep " 3 $FD " | grep -v grep >/dev/null
+      if [ "$?" -eq "0" ]; then
+        OUTFD=$FD
+        break
+      fi
+    fi
+  done
+fi
+
+if $BOOTMODE && ! is_mounted /magisk; then
+  ui_print "(!) Magisk is not activated"
+  exit 1
+fi
+
+# Fix SuperSU.....
+$BOOTMODE && $BINDIR/sepolicy-inject --live "allow fsck * * *"
+
+# This path should work in any cases
+TMPDIR=/dev/tmp
+
+MOUNTPATH=/magisk
+IMGNAME=magisk.img
+
+if $BOOTMODE; then
+  MOUNTPATH=/dev/magisk_merge
+  IMGNAME=magisk_merge.img
+fi
+
+mkdir -p $TMPDIR 2>/dev/null
+cd $TMPDIR
+unzip -o "$ZIP" config.sh
+
+if [ ! -f "config.sh" ]; then
+  ui_print "(!) Failed to extract zip file"
+  exit 1
+fi
+
+source config.sh
+
+INSTALLER=$TMPDIR/install
+MODPATH=$MOUNTPATH/$MODID
+
+mkdir -p $INSTALLER
+unzip -o "$ZIP" -d $INSTALLER 2>/dev/null
+
+##########################################################################################
+# Main
+##########################################################################################
+
+# Print mod name
+print_modname
+
+# Please leave this message in your flashable zip for credits :)
+ui_print "******************************"
+ui_print "Powered by Magisk (@topjohnwu)"
+ui_print "******************************"
+
+ui_print "* Mounting /system(ro), /vendor(ro), /data, /cache"
+mount -o ro /system 2>/dev/null
+mount -o ro /vendor 2>/dev/null
+mount /data 2>/dev/null
+mount /cache 2>/dev/null
+
+if [ ! -f '/system/build.prop' ]; then
+  ui_print "(!) Failed to mount /system"
+  exit 1
+fi
+
+API=`grep_prop ro.build.version.sdk`
+ABI=`grep_prop ro.product.cpu.abi | cut -c-3`
+ABI2=`grep_prop ro.product.cpu.abi2 | cut -c-3`
+ABILONG=`grep_prop ro.product.cpu.abi`
+
+ARCH=arm
+IS64BIT=false
+if [ "$ABI" = "x86" ]; then ARCH=x86; fi;
+if [ "$ABI2" = "x86" ]; then ARCH=x86; fi;
+if [ "$ABILONG" = "arm64-v8a" ]; then ARCH=arm64; IS64BIT=true; fi;
+if [ "$ABILONG" = "x86_64" ]; then ARCH=x86_64; IS64BIT=true; fi;
+
+# You can get the Android API version from $API, the CPU architecture from $ARCH
+# Useful if you are creating Android version / platform dependent mods
+
+if is_mounted /data; then
+  IMG=/data/$IMGNAME
+  if [ ! -f "/data/magisk.img" ]; then
+    ui_print "(!) Magisk is not installed"
+    exit 1
+  fi
+else
+  IMG=/cache/magisk.img
+  ui_print " "
+  ui_print "***********************************"
+  ui_print "*      !! Data unavailible !!     *"
+  ui_print "* Magisk detection is impossible  *"
+  ui_print "* Installation will still proceed *"
+  ui_print "*  But please make sure you have  *"
+  ui_print "*        Magisk installed!!       *"
+  ui_print "***********************************"
+  ui_print " "
+fi
+
+request_size_check "$ZIP"
+
+if [ ! -f /data/_u ]; then
+	if [ -f "$IMG" ]; then
+	  ui_print "* $IMG detected"
+	  image_size_check $IMG
+	  if [ "$reqSizeM" -gt "$curFreeM" ]; then
+		SIZE=$(($curFreeM + 2048))
+		ui_print "* Resizing $IMG to ${SIZE}M (buffer)"
+		resize2fs $IMG ${SIZE}M
+	  fi
+	else
+	  SIZE=2048
+	  ui_print "* Creating $IMG with size ${SIZE}M (buffer)"
+	  make_ext4fs -l ${SIZE}M -a /magisk -S $INSTALLER/common/file_contexts_image $IMG
+	fi
+fi
+
+mount_image $IMG $MOUNTPATH
+if ! is_mounted $MOUNTPATH; then
+  ui_print "(!) Failed to mount $IMG"
+  exit 1
+fi
+
+# Create mod paths
+clean_modDIR() {
+	rm -rf $MODPATH/system
+	rm -rf $MODPATH/vendor
+	mkdir -p $MODPATH
+} 2>/dev/null
+
+
+
+# Main Variables & Constants
+CurVerInfo=$MODPATH/system/etc/g.prop
+CurOpenGA_VER=0
+OpenGA_VER=0
+reinstall=false
+SearchDIR=/sdcard/Download
+SearchDIR2=$SearchDIR/OpenGApps
+SearchDIR3=/external_sd
+SearchDIR4=$SearchDIR3/.fbind/Download
+SearchDIR5=$SearchDIR4/OpenGApps
+SearchDIR6=$SearchDIR3/Download
+SearchDIR7=$SearchDIR6/OpenGApps
+SearchDIR8=/sdcard
+SearchDIR9=
+
+
+# Set Alternate SearchDIR
+if [ -f /data/_d ]; then
+	SearchDIR9=$(cat /data/_d)
+	rm /data/_d;
+fi
+
+
+for file in $SearchDIR/open_gapps-* $SearchDIR2/open_gapps-* \
+	$SearchDIR3/open_gapps-* $SearchDIR4/open_gapps-* \
+	$SearchDIR5/open_gapps-* $SearchDIR6/open_gapps-* \
+	$SearchDIR7/open_gapps-* $SearchDIR8/open_gapps-* \
+	$SearchDIR9/open_gapps-*; do
+	if [ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.arch' | cut -d = -f 2)" = "$ARCH" ] && \
+		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.sdk' | cut -d = -f 2)" = "$API" ] && \
+		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.open_type' | cut -d = -f 2)" != "aroma" ] ; then
+		FoundOpenGA_VER=$(unzip -pqo "$file" g.prop | grep 'ro.addon.open_version' | cut -d = -f 2)
+		if [ "$FoundOpenGA_VER" -ge "$CurOpenGA_VER" ]; then
+			CurOpenGA_VER=$FoundOpenGA_VER
+			LatestZip="$file"
+		fi
+	fi
+done 2>/dev/null
+
+
+if [ -f $CurVerInfo ]; then
+	OpenGA_VER=$(grep 'ro.addon.open_version' $CurVerInfo | cut -d = -f 2)
+fi
+
+if [ "$CurOpenGA_VER" -gt "$OpenGA_VER" ]; then GAppsZip=$LatestZip
+else
+	if [ -f /data/_r ]; then
+		reinstall=true
+		GAppsZip=$LatestZip
+		rm -f /data/_r
+	else exxit 0
+	fi
+fi
+
+
+clean_modDIR
+OpenGAPackage="$(echo "$(unzip -pqo "$GAppsZip" g.prop | grep 'ro.addon.open_type' | cut -d = -f 2)-$CurOpenGA_VER")"
+ui_print "* Latest OpenGApps package found: $OpenGAPackage"
+$reinstall && ui_print "* Re-installing OpenGApps-$OpenGAPackage" || \
+	ui_print "* Installing OpenGApps-$OpenGAPackage"
+
+# Disable conflicting apps
+rm_list="
+/system/app/BrowserProviderProxy
+/system/app/PartnerBookmarksProvider
+/system/app/Provision
+/system/app/QuickSearchBox
+/system/priv-app/BrowserProviderProxy
+/system/priv-app/PartnerBookmarksProvider
+/system/priv-app/Provision
+/system/priv-app/QuickSearchBox
+/system/priv-app/LineageSetupWizard
+/system/priv-app/XPerienceSetupWizard
+"
+for folder in $rm_list; do
+	[ -d $folder ] && mktouch $MODPATH$folder/.replace
+done
+
+# Extract OpenGApps install scripts
+GAppsTmpDir=$INSTALLER/OpenGApps
+mkdir $GAppsTmpDir 2 > /dev/null
+unzip -o "$GAppsZip" "META-INF/*" -d $GAppsTmpDir
+unzip -o "$GAppsZip" installer.sh -d /tmp
+
+# Bind mount NewPersistPath NewSystemPath & NewVendorPath
+cp -af /system/build.prop $INSTALLER/build.prop
+umount /system 2>/dev/null
+NewPersistPath=$MODPATH/.persist
+NewSystemPath=$MODPATH/system
+NewVendorPath=$NewSystemPath/vendor
+mkdir $NewPersistPath 2>/dev/null
+mkdir $NewSystemPath
+mount -o bind $NewPersistPath /persist
+mount -o bind $NewSystemPath /system
+if [ -d /vendor ]; then
+	umount /vendor 2>/dev/null
+	mkdir $NewVendorPath
+	mount -o bind $NewVendorPath /vendor
+fi
+
+# Install OpenGApps
+mv $INSTALLER/build.prop $NewSystemPath/build.prop
+GAppsInstaller=$GAppsTmpDir/META-INF/com/google/android/update-binary
+sed -i s*"SYSTEM=/system/system"*"SYSTEM=/system"*g /tmp/installer.sh
+sed -i '/device_abpartition=true/s/true/false/' /tmp/installer.sh
+sed -i s*'export OPENGAZIP="$3"'*"export OPENGAZIP=\"$GAppsZip\""*g $GAppsInstaller
+sed -i s/'unzip -o'/'unzip -n'/g $GAppsInstaller
+chmod 777 $GAppsInstaller /tmp/installer.sh
+$GAppsInstaller
+
+# Update module.prop to reflect OpenGApps version
+sed -i "2s/$/ ($OpenGAPackage)/" $INSTALLER/module.prop
+
+# Cleanup
+rm $MODPATH/system/build.prop
+rm -rf $MODPATH/system/addon.d
+[ $(ls -a $NewPersistPath) ] || rm -rf $NewPersistPath
+[ $(ls -a $NewVendorPath) ] || rm -rf $NewVendorPath
+
+
+
+# Handle replace folders
+for TARGET in $REPLACE; do
+  mktouch $MODPATH$TARGET/.replace
+done
+
+# Auto Mount
+if $AUTOMOUNT; then
+  mktouch $MODPATH/auto_mount
+fi
+
+# prop files
+if $PROPFILE; then
+  cp -af $INSTALLER/common/system.prop $MODPATH/system.prop
+fi
+
+# Module info
+cp -af $INSTALLER/module.prop $MODPATH/module.prop
+if $BOOTMODE; then
+  # Update info for Magisk Manager
+  mktouch /magisk/$MODID/update
+  cp -af $INSTALLER/module.prop /magisk/$MODID/module.prop
+fi
+
+# post-fs-data mode scripts
+if $POSTFSDATA; then
+  cp -af $INSTALLER/common/post-fs-data.sh $MODPATH/post-fs-data.sh
+fi
+
+# service mode scripts
+if $LATESTARTSERVICE; then
+  cp -af $INSTALLER/common/service.sh $MODPATH/service.sh
+fi
+
+
+ui_print "* Unmounting partitions (phase 1/2)"
+{
+umount /persist
+umount /vendor
+umount /system
+} 2>/dev/null
+
+
+# Systemlessly patch "/system/etc/sysconfig/*" for data & battery savings
+syscfg=/system/etc/sysconfig
+syscfgM=$MODPATH/system/etc/sysconfig
+syscfgTMP=$INSTALLER/_syscfg
+
+ui_print "* Applying data control & battery saving patches"
+mount -o ro /system
+cp -rf $syscfg $syscfgTMP
+mv $syscfgM/* $syscfgTMP
+cd $syscfgTMP
+for file in `ls -1`; do sed -i '/allow/s/<a/<!-- a/' $file; done
+sed -i '/.volta/s/<!-- a/<a/' google.xml
+mv $syscfgTMP/* $syscfgM
+chmod -R 644 $syscfgM
+echo "$(du -s /system | cut -f1)" > $MODPATH/.InstallSystemSizeK
+
+
+signature_spoofing_patch
+
+ui_print "* Setting permissions"
+set_permissions
+
+{ ui_print "* Unmounting partitions (phase 2/2)"
+umount /system
+umount $MOUNTPATH
+losetup -d $LOOPDEVICE
+rmdir $MOUNTPATH; } 2>/dev/null
+
+shrink_img
+ui_print "* Done"
+exit 0

@@ -1,0 +1,110 @@
+# v2017.9.26-Beta (20179260)
+- Added "pm grant" script (another attempt to fixing FCs).
+- Signature spoofing is now disabled by default.
+- Minor optimizations
+- Updated reference.
+
+# v2017.9.22-Beta (20179220)
+- Added OpenGApps API filter.
+- Enhanced architecture detection.
+- Enhanced unsupported versions filtering.
+- Updated debugging info.
+- Cleanup & optimizations
+- Fixed automatic sysconfig/* re-patching.
+
+# v2017.9.21.1-Beta (20179211)
+- Added package architecture filtering for better user experience.
+-- i.e., classic arm/arm64 package mis-selection won't happen again.
+
+# v2017.9.21-Beta (20179210)
+- Massive cleanup & optimizations
+- Signature spoofing patch to avoid GMS FCs in some ROMs.
+- Ability to uninstall the module by running "touch /data/_u" before flashing MagicGApps zip."
+- Updated reference (please, READ it).
+
+# v2017.9.4-Beta
+- Striped down as much as possible for easier & faster debugging.
+- gupdate tool & config file are not present in this version (currently being redesigned). Trust me, though -- you won't miss these anytime soon!
+- Auto-patch, & re-patch "sysconfig/*" for data & battery savings enabled by default.
+- Massive optimizations
+- Better debugging support from within recovery itself.
+- Updated reference.
+- Installation is aborted if same or older OpenGApps zip version is the latest one found on the device (much better approach). Run "touch /data/_r" if you wish to force reinstall.
+- The target search folders may now contain any other files besides "open_gapps-*.zip." There won't be "not found" nor "wrong file" errors anymore.
+-- These are /data/media/0/Download, /data/media/0/Download/OpenGApps, /external_sd, /external_sd/.fbind/Download & /external_sd/.fbind/Download/OpenGApps. You can run "echo SearchDir=PATH > /data/_d" to set an alternate search directory.
+- Pushed to Magisk modules repo (the obsolete version was finally replaced!).
+
+# v2017.8.23-Beta
+- Major optimizations
+- Major bug fixes
+- Improved debugging tools
+- Updated reference
+- More options in the config.txt file
+- Added options to see the README and changelog on terminal (gupdate -ref & -chlog)
+- Not a change, but please... ALWAYS read the reference (README) before installing/updating. Not answering dumb questions anymore. 
+
+# v2017.8.18-Beta
+- Fixed "gupdate -p"
+- Fixed "OpenGApps package not found" 
+- Fixed "sysconfig/*" patching upon installation
+- Added options to specify "GAppsDir" (default is /data/media/0/Download/OpenGApps) and "auto_repatch_sysconfig" across updates (true or false)
+- Check README for more info 
+
+# v2017.8.17-Beta
+- Bug fixes and optimizations
+- Added option to persistently and systemlessly patch "/system/etc/sysconfig/*" for data and battery savings across updates. Check README for more info. 
+
+# v2017.8.16-Beta
+- Added options to systemlessly patch "/system/etc/sysconfig/*" for data & battery savings upon installation. Check README.
+- Minor optimizations
+
+# v2017.8.15-Beta
+- Fixed a couple of "gupdate" bugs. -p and -r options work as expected now.
+
+# v2017.8.14-Beta
+- Complete redesign -- the installer finds a regular OpenGApps package, "turns it upside down" then installs it as a Magisk module.
+- Extremely small package
+- Includes "gupdate" utility (xbin) for easy GApps update. Check README.
+
+# v2017.7.29
+- Under-the-hood optimizations
+- Added Google App, Google TTS + off-line voice data
+- Added Face Unlock and legacy LatinIME swype libs
+- Updated documentation
+
+# v2017.7.25
+- Updated to template v4
+- Added default permissions
+
+# v2017.6.22
+- Updated APKs/files
+
+# v2017.6.12
+- Fixed Google Play Services FC that prevented Google account sign in
+- Updated scripts
+
+# v2017.6.4
+- Added more battery & data saving patches
+- Bug fixes
+
+# v2017.6.2
+- Reverted configuration files suspected to cause GMS random crashes
+- Updated APKs
+
+# v2017.6.1
+- Added ARM64 support
+
+# v2017.5.31
+- Package striped down and optimized as much as possible (check main post for more info)
+
+# v2017.5.26
+- Changed module name 
+- Updated scripts 
+- Optimized version number 
+- Optimized zip file
+- Improved compatibility 
+- Replaced Pixel Launcher by Nova Launcher 
+- Added source code to GitHub
+
+# v2017.5.9
+- Initial release

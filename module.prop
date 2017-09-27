@@ -1,0 +1,7 @@
+id=MagicGApps
+name=Magic GApps
+version=v2017.9.26-Beta
+versionCode=20179260
+author=VR25 @ XDA Developers
+description=Limited /system space? Love trying different things? Go ahead & install a regular OpenGApps package as a Magisk module! [RECOVERYMODE only]
+template=3
