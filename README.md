@@ -10,7 +10,7 @@
 ***
 **Description**
 - Installs a regular OpenGApps Package as a Magisk module (systemless GApps). This doesn't mean the module modifies `open_gapps-*.zip` files to be systemless compatible. Rather, it tweaks the recovery environment for systemless installation, extracts, patches & runs the OpenGApps install scripts, then magic happens. Just for extra clarification, `open_gapps-*.zip` files aren't modified in any way, shape or form.
-- Auto-patch, & re-patch sysconfig/* for data & battery savings enabled by default.
+- Auto-patch, & re-patch sysconfig/* for data & battery savings (`touch /data/_s`).
 - Installation is aborted if same or older OpenGApps zip version is the latest one found on the device. Run `touch /data/_r` if you wish to override that (force reinstall).
 
 
@@ -39,7 +39,8 @@
 **Notes/tips**
 - Due to the nature of this module, BOOTMODE installation is currently not supported, nor easily adaptable. Installation will fail with exit code 1 in BOOTMODE. Install from `RECOVERYMODE only`.
 - Magic GApps was built on top of an heavily modified template v3 due to the above condition and major issues with newer templates. This should not interfere with installation, though.
-- Signature spoofing patching is available, but disabled by default. If you want it, enable by running `touch /data/_s`. This must be reapplied across ROM updates -- simply re-flash the module to do that (don't worry, it won't re-install GApps).
+- Signature spoofing patching is available, but disabled by default. If you want it, enable by running `touch /data/_ss`. This must be reapplied across ROM updates -- simply re-flash the module to do that (don't worry, it won't re-install GApps).
+- There's a config file to preserve user settings -- /data/_MagicGApps_config.txt.
 
 
 ***

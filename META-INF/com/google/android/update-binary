@@ -189,7 +189,7 @@ exxit() {
 
 
 signature_spoofing_patch() {
-	if [ -f /data/_s ]; then
+	if [ -f /data/_ss ] || $signature_spoofing_patch; then
 		ui_print "* Applying signature spoofing patch"
 		BASEDIR=$INSTALLER/bin
 		ANDROID_DATA=$BASEDIR
@@ -429,10 +429,6 @@ if [ "$ABILONG" = "x86_64" ]; then ARCH=x86_64; IS64BIT=true; fi;
 
 if is_mounted /data; then
   IMG=/data/$IMGNAME
-  if [ ! -f "/data/magisk.img" ]; then
-    ui_print "(!) Magisk is not installed"
-    exit 1
-  fi
 else
   IMG=/cache/magisk.img
   ui_print " "
@@ -470,13 +466,13 @@ if ! is_mounted $MOUNTPATH; then
   exit 1
 fi
 
+
 # Create mod paths
 clean_modDIR() {
 	rm -rf $MODPATH/system
 	rm -rf $MODPATH/vendor
 	mkdir -p $MODPATH
 } 2>/dev/null
-
 
 
 # Main Variables & Constants
@@ -494,6 +490,13 @@ SearchDIR7=$SearchDIR6/OpenGApps
 SearchDIR8=/sdcard
 SearchDIR9=
 
+
+# Copy/import config file
+if [ ! -f /data/_MagicGApps_config.txt ]; then
+	mv $INSTALLER/common/_MagicGApps_config.txt /data
+	chmod 777 /data/_MagicGApps_config.txt
+fi
+source /data/_MagicGApps_config.txt
 
 # Set Alternate SearchDIR
 if [ -f /data/_d ]; then
@@ -643,21 +646,22 @@ umount /system
 
 
 # Systemlessly patch "/system/etc/sysconfig/*" for data & battery savings
-syscfg=/system/etc/sysconfig
-syscfgM=$MODPATH/system/etc/sysconfig
-syscfgTMP=$INSTALLER/_syscfg
+if [ -f /data/_s ] || $sysconfig_patch; then
+	syscfg=/system/etc/sysconfig
+	syscfgM=$MODPATH/system/etc/sysconfig
+	syscfgTMP=$INSTALLER/_syscfg
 
-ui_print "* Applying data control & battery saving patches"
-mount -o ro /system
-cp -rf $syscfg $syscfgTMP
-mv $syscfgM/* $syscfgTMP
-cd $syscfgTMP
-for file in `ls -1`; do sed -i '/allow/s/<a/<!-- a/' $file; done
-sed -i '/.volta/s/<!-- a/<a/' google.xml
-mv $syscfgTMP/* $syscfgM
-chmod -R 644 $syscfgM
-echo "$(du -s /system | cut -f1)" > $MODPATH/.InstallSystemSizeK
-
+	ui_print "* Applying data control & battery saving patches"
+	mount -o ro /system
+	cp -rf $syscfg $syscfgTMP
+	mv $syscfgM/* $syscfgTMP
+	cd $syscfgTMP
+	for file in `ls -1`; do sed -i '/allow/s/<a/<!-- a/' $file; done
+	sed -i '/.volta/s/<!-- a/<a/' google.xml
+	mv $syscfgTMP/* $syscfgM
+	chmod -R 644 $syscfgM
+	echo "$(du -s /system | cut -f1)" > $MODPATH/.InstallSystemSizeK
+fi
 
 signature_spoofing_patch
 

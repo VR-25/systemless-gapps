@@ -1,3 +1,8 @@
+# v2017.10.2-Beta (201710200)
+- Auto-create magisk.img instead of aborting with "(!) Magisk is not installed" error message.
+- Sysconfig patch is now optional (touch /data/_s)
+- Added persistent config file (/data/_MagicGApps_config.txt) for patches & alternate Open GApps zip search dir.
+
 # v2017.9.26-Beta (20179260)
 - Added "pm grant" script (another attempt to fixing FCs).
 - Signature spoofing is now disabled by default.
