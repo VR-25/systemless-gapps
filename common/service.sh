@@ -2,9 +2,12 @@
 
 # Grant all necessary permissions to core GApps to avoid Setup Wizard &/or Google Play Services FCs
 
-if [ ! -f /data/.MagicGApps ]; then
-	
-	exec &>/data/.MagicGApps
+# Prepare Environment
+export PATH=/dev/magisk/bin:$PATH
+
+if [ ! -f /data/MagicGApps/.perms ]; then
+	mkdir /data/MagicGApps 2>/dev/null
+	exec &>/data/MagicGApps/.perms
 	echo "$(date)"
 	echo
 	echo "Grant all necessary permissions to core GApps to avoid FCs"

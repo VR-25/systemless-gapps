@@ -5,4 +5,4 @@ signature_spoofing_patch=false
 sysconfig_patch=false
 
 # Alternate Open GApps zip search dir
-SearchDIR9=
+Alternate_SearchDIR=

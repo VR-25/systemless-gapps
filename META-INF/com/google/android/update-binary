@@ -19,12 +19,12 @@ ui_print() {
   fi
 }
 
-# Not a function, but... meh! -- Who cares?
+# Not a function, but... meh!
 if $BOOTMODE; then ui_print " "
 	ui_print "(i) BOOTMODE install is not supported"
 	ui_print "- Reboot into recovery & try again"
 	ui_print " "
-	exit 0
+	exit 1
 fi
 
 grep_prop() {
@@ -133,49 +133,54 @@ shrink_img() {
 	fi
 }
 
+umnt_all() {
+	umount /vendor
+	umount /system
+	umount $MOUNTPATH
+	losetup -d $LOOPDEVICE
+	rmdir $MOUNTPATH
+} 2>/dev/null
 
 exxit() {
 	if [ "$1" = "0" ]; then
 		if [ -f /data/_u ]; then
 			ui_print "* Uninstalling Magic GApps"
 			rm -rf $MODPATH
-			umount /vendor
-			umount /system
-			umount $MOUNTPATH
-			losetup -d $LOOPDEVICE
-			rmdir $MOUNTPATH
+			umnt_all
 			rm -f /data/_u
 			shrink_img
 			ui_print "* Done"
 			exit 0
 		fi
-		ui_print "* (i) No OpenGApps update found"
+		ui_print "  "
+		ui_print "(i) No OpenGApps update found"
 		ui_print "- Run \"touch /data/_r\" to reinstall"
 		ui_print "-- or \"touch /data/_u\" to uninstall"
+		ui_print "  "
 		signature_spoofing_patch
-		umount /vendor
-		umount /system
-		umount $MOUNTPATH
-		losetup -d $LOOPDEVICE
-		rmdir $MOUNTPATH
+		umnt_all
 		rm -f /data/_r
 		shrink_img
 		exit 0
 		
 	elif [ "$1" = "1" ]; then
-		ui_print "(i) No compatible \"open_gapps-*.zip\" archive found"
-		ui_print "- Check to make sure the target file exists &/or isn't corrupted"
-		ui_print "- You can set an alternate search path with \"echo PATH > /data/_d\""
+		ui_print "  "
+		ui_print "(!) No compatible \"open_gapps-*.zip\" file found"
+		ui_print "- Check to make sure the target archive exists &/or isn't corrupted"
+		ui_print "- You can set an alternate search path by running \"echo PATH > /data/_d\""
+		ui_print "  "
 		{ umount /vendor
 		umount /system
 		umount $MOUNTPATH
 		losetup -d $LOOPDEVICE
 		rmdir $MOUNTPATH; } 2>/dev/null
 		shrink_img
-		exit 0
+		exit 1
 		
-	else ui_print "(!) Signature spoofing patch failed"
+	else ui_print "  "
+		ui_print "(!) Signature spoofing patch failed"
 		ui_print "- Error message: $@"
+		ui_print "  "
 		umount /vendor
 		umount /system
 		umount $MOUNTPATH
@@ -209,9 +214,9 @@ signature_spoofing_patch() {
 					lanchon.dexpatcher.Main \
 					$DEX_OPTS --api-level $SDK_VERSION \
 					--verbose --output $1 $2 $3 || \
-						exxit $4
+						exxit "$4"
 
-			[ -f $1/classes.dex ] || exxit $4
+			[ -f $1/classes.dex ] || exxit "$4"
 
 			LD_LIBRARY_PATH=$C_LD \
 				$ZIPB -d $2 'classes*.dex' || \
@@ -381,13 +386,19 @@ if [ ! -f "config.sh" ]; then
   exit 1
 fi
 
-source config.sh
+. config.sh
 
 INSTALLER=$TMPDIR/install
 MODPATH=$MOUNTPATH/$MODID
 
-mkdir -p $INSTALLER
-unzip -o "$ZIP" -d $INSTALLER 2>/dev/null
+{ mkdir -p -m 777 $INSTALLER/busybox
+unzip -o "$ZIP" -d $INSTALLER; } 2>/dev/null
+
+# Add Magisk's built-in busybox to PATH
+if [ -f /data/magisk/busybox ]; then
+	PATH=/data/magisk/busybox:$INSTALLER/busybox:$PATH
+	busybox --install -s $INSTALLER/busybox
+fi
 
 ##########################################################################################
 # Main
@@ -469,13 +480,15 @@ fi
 
 # Create mod paths
 clean_modDIR() {
-	rm -rf $MODPATH/system
-	rm -rf $MODPATH/vendor
+	mv $MODPATH/.persist $INSTALLER
+	rm -rf $MODPATH
 	mkdir -p $MODPATH
+	mv $INSTALLER/.persist $MODPATH
 } 2>/dev/null
 
 
 # Main Variables & Constants
+cfg_dir=/data/MagicGApps
 CurVerInfo=$MODPATH/system/etc/g.prop
 CurOpenGA_VER=0
 OpenGA_VER=0
@@ -488,28 +501,40 @@ SearchDIR5=$SearchDIR4/OpenGApps
 SearchDIR6=$SearchDIR3/Download
 SearchDIR7=$SearchDIR6/OpenGApps
 SearchDIR8=/sdcard
-SearchDIR9=
+Alternate_SearchDIR=
 
 
 # Copy/import config file
-if [ ! -f /data/_MagicGApps_config.txt ]; then
-	mv $INSTALLER/common/_MagicGApps_config.txt /data
-	chmod 777 /data/_MagicGApps_config.txt
+if [ ! -f $cfg_dir/config.txt ]; then
+	mv $INSTALLER/common/MagicGApps /data
+	###
+	old_cfg=/data/_MagicGApps_config.txt
+	if [ -f $old_cfg ]; then
+		grep -q 'ing_patch=true' $old_cfg \
+			&& sed -i '/ing_patch=/s/false/true/' $cfg_dir/config.txt
+		grep -q 'ig_patch=true' $old_cfg \
+			&& sed -i '/ig_patch=/s/false/true/' $cfg_dir/config.txt
+		rm $old_cfg
+	fi
+	###
+	chmod -R 777 $cfg_dir
 fi
-source /data/_MagicGApps_config.txt
+. $cfg_dir/config.txt
+
 
 # Set Alternate SearchDIR
 if [ -f /data/_d ]; then
-	SearchDIR9=$(cat /data/_d)
+	Alternate_SearchDIR=$(cat /data/_d)
 	rm /data/_d;
 fi
 
 
+# Find latest OpenGAPackage
 for file in $SearchDIR/open_gapps-* $SearchDIR2/open_gapps-* \
 	$SearchDIR3/open_gapps-* $SearchDIR4/open_gapps-* \
 	$SearchDIR5/open_gapps-* $SearchDIR6/open_gapps-* \
 	$SearchDIR7/open_gapps-* $SearchDIR8/open_gapps-* \
-	$SearchDIR9/open_gapps-*; do
+	$Alternate_SearchDIR/open_gapps-*; do
 	if [ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.arch' | cut -d = -f 2)" = "$ARCH" ] && \
 		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.sdk' | cut -d = -f 2)" = "$API" ] && \
 		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.open_type' | cut -d = -f 2)" != "aroma" ] ; then
@@ -520,6 +545,14 @@ for file in $SearchDIR/open_gapps-* $SearchDIR2/open_gapps-* \
 		fi
 	fi
 done 2>/dev/null
+
+
+[ -z "$LatestZip" ] && exxit 1
+
+
+# Remove obsolete files
+rm /data/.MagicGApps 2>/dev/null ###
+rm $cfg_dir/.perms 2>/dev/null
 
 
 if [ -f $CurVerInfo ]; then
@@ -648,19 +681,35 @@ umount /system
 # Systemlessly patch "/system/etc/sysconfig/*" for data & battery savings
 if [ -f /data/_s ] || $sysconfig_patch; then
 	syscfg=/system/etc/sysconfig
-	syscfgM=$MODPATH/system/etc/sysconfig
+	syscfgP=$MODPATH/system/etc/sysconfig
 	syscfgTMP=$INSTALLER/_syscfg
+	syscfgBKP=$MODPATH/.syscfgBKP
 
 	ui_print "* Applying data control & battery saving patches"
 	mount -o ro /system
-	cp -rf $syscfg $syscfgTMP
-	mv $syscfgM/* $syscfgTMP
-	cd $syscfgTMP
-	for file in `ls -1`; do sed -i '/allow/s/<a/<!-- a/' $file; done
-	sed -i '/.volta/s/<!-- a/<a/' google.xml
-	mv $syscfgTMP/* $syscfgM
-	chmod -R 644 $syscfgM
-	echo "$(du -s /system | cut -f1)" > $MODPATH/.InstallSystemSizeK
+	[ -d "$syscfgTMP" ] && rm -rf $syscfgTMP
+	mkdir $syscfgTMP
+	cp -rf $syscfgP $syscfgBKP
+	rm -rf $syscfgP/*
+	
+	for file in $syscfg/* $syscfgBKP/*; do
+		if [ -f "$file" ]; then
+			grep -Eq '<allow-in-power-save|<allow-in-data-usage-save' "$file" \
+				&& cp "$file" $syscfgTMP || cp "$file" $syscfgP
+		fi
+	done
+	
+	for file in $syscfgTMP/*; do
+		[ -f "$file" ] && sed -i '/allow/s/<a/<!-- a/' "$file"
+	done
+	
+	sed -i '/.volta/s/<!-- a/<a/' $syscfgTMP/google.xml
+	cp $syscfgTMP/* $syscfgP
+	rm -rf $syscfgTMP
+	chmod -R 644 $syscfgP
+	echo
+	
+	echo "$(du -s /dev/magisk/mirror/system | cut -f1)" > $MODPATH/.SystemSizeK
 fi
 
 signature_spoofing_patch
@@ -668,11 +717,8 @@ signature_spoofing_patch
 ui_print "* Setting permissions"
 set_permissions
 
-{ ui_print "* Unmounting partitions (phase 2/2)"
-umount /system
-umount $MOUNTPATH
-losetup -d $LOOPDEVICE
-rmdir $MOUNTPATH; } 2>/dev/null
+ui_print "* Unmounting partitions (phase 2/2)"
+umnt_all
 
 shrink_img
 ui_print "* Done"
