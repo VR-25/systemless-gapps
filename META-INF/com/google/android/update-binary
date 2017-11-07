@@ -201,11 +201,8 @@ signature_spoofing_patch() {
 		PATH=$PATH:/system/bin:/system/xbin
 		PATCH_CORE=core_services.jar.dex
 
-		
 		apply_patch () {
-			if [ "$SDK_VERSION" -gt 21 ]; then
-				mkdir -p "$1"
-			fi
+			[ "$SDK_VERSION" -gt 21 ] && mkdir -p "$1"
 
 			LD_LIBRARY_PATH=$C_LD \
 				/system/bin/dalvikvm \
@@ -229,7 +226,7 @@ signature_spoofing_patch() {
 			rm -rf $1
 		}
 
-		
+
 		# prepare patcher
 		cd $BASEDIR
 		chmod 755 zip.arm zip.x86 file.arm file.x86
@@ -238,27 +235,18 @@ signature_spoofing_patch() {
 		# detect sdk
 		SDK_VERSION=$(awk -F= '/^ro.build.version.sdk/{print $2}' /system/build.prop)
 
-		if [ $SDK_VERSION -gt 26 ]; then
+		[ $SDK_VERSION -gt 26 ] && \
 			exxit "Android versions beyond Oreo are not yet supported"
-		fi
 
-		if [ $SDK_VERSION -lt 16 ]; then
+		[ $SDK_VERSION -lt 16 ] && \
 			exxit "Android versions before Jelly Bean are not supported"
-		fi
 
-		if [ $SDK_VERSION -lt 24 ]; then
-			PATCH_HOOK="hook_4.1-6.0_services.jar.dex"
-			PATCH_UI_SERVICES="ui_4.1-6.0_services.jar.dex"
-			PATCH_UI_SETTINGS="ui_4.1-6.0_Settings.apk.dex"
-		else
-			PATCH_HOOK="hook_7.0-8.0_services.jar.dex"
-			PATCH_UI_SERVICES="ui_7.0-8.0_services.jar.dex"
-			PATCH_UI_SETTINGS="ui_7.0-8.0_Settings.apk.dex"
-		fi
+		[ $SDK_VERSION -lt 24 ] && \
+			PATCH_HOOK="hook_4.1-6.0_services.jar.dex" \
+			|| PATCH_HOOK="hook_7.0-8.0_services.jar.dex"
 
-		if [ $SDK_VERSION -gt 21 ]; then
+		[ $SDK_VERSION -gt 21 ] && \
 			DEX_OPTS="--multi-dex-threaded"
-		fi
 
 
 		# detect odex
@@ -333,6 +321,14 @@ signature_spoofing_patch() {
 	fi
 }
 
+
+
+clean_modDIR() {
+	mv $MODPATH/.persist $INSTALLER
+	rm -rf $MODPATH
+	mkdir -p $MODPATH
+	mv $INSTALLER/.persist $MODPATH
+} 2>/dev/null
 
 
 ##########################################################################################
@@ -478,17 +474,8 @@ if ! is_mounted $MOUNTPATH; then
 fi
 
 
-# Create mod paths
-clean_modDIR() {
-	mv $MODPATH/.persist $INSTALLER
-	rm -rf $MODPATH
-	mkdir -p $MODPATH
-	mv $INSTALLER/.persist $MODPATH
-} 2>/dev/null
-
-
 # Main Variables & Constants
-cfg_dir=/data/MagicGApps
+cfg_dir=/data/media/MagicGApps
 CurVerInfo=$MODPATH/system/etc/g.prop
 CurOpenGA_VER=0
 OpenGA_VER=0
@@ -501,7 +488,12 @@ SearchDIR5=$SearchDIR4/OpenGApps
 SearchDIR6=$SearchDIR3/Download
 SearchDIR7=$SearchDIR6/OpenGApps
 SearchDIR8=/sdcard
+SearchDIR9="$(dirname "$ZIP")"
 Alternate_SearchDIR=
+
+
+# Migrate old cfg_dir ###
+[ -d /data/media/MagicGApps ] || mv /data/MagicGApps /data/media 2>/dev/null
 
 
 # Copy/import config file
@@ -534,7 +526,7 @@ for file in $SearchDIR/open_gapps-* $SearchDIR2/open_gapps-* \
 	$SearchDIR3/open_gapps-* $SearchDIR4/open_gapps-* \
 	$SearchDIR5/open_gapps-* $SearchDIR6/open_gapps-* \
 	$SearchDIR7/open_gapps-* $SearchDIR8/open_gapps-* \
-	$Alternate_SearchDIR/open_gapps-*; do
+	$SearchDIR9/open_gapps-* $Alternate_SearchDIR/open_gapps-*; do
 	if [ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.arch' | cut -d = -f 2)" = "$ARCH" ] && \
 		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.sdk' | cut -d = -f 2)" = "$API" ] && \
 		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.open_type' | cut -d = -f 2)" != "aroma" ] ; then
@@ -547,12 +539,12 @@ for file in $SearchDIR/open_gapps-* $SearchDIR2/open_gapps-* \
 done 2>/dev/null
 
 
-[ -z "$LatestZip" ] && exxit 1
+[ "$LatestZip" ] || exxit 1
 
 
 # Remove obsolete files
 rm /data/.MagicGApps 2>/dev/null ###
-rm $cfg_dir/.perms 2>/dev/null
+rm $cfg_dir/.perms* 2>/dev/null
 
 
 if [ -f $CurVerInfo ]; then
@@ -568,30 +560,35 @@ else
 	else exxit 0
 	fi
 fi
-
-
 clean_modDIR
+
+
+# Disable conflicting apps
+ui_print "* Disabling conflicting & unwanted system packages"
+default_disable_list="
+BrowserProviderProxy
+PartnerBookmarksProvider
+Provision
+QuickSearchBox
+LineageSetupWizard
+XPerienceSetupWizard
+"
+user_disable_list="$(cat "$(dirname "$GAppsZip")"/disable_list.txt "$SearchDIR9/disable_list.txt" $cfg_dir/disable_list.txt 2>/dev/null | grep -v '#')"
+
+for folder in $default_disable_list $user_disable_list; do
+	[ -d /system/app/$folder ] && mktouch $MODPATH/system/app/$folder/.replace
+	[ -d /system/priv-app/$folder ] && mktouch $MODPATH/system/priv-app/$folder/.replace
+done
+
+
 OpenGAPackage="$(echo "$(unzip -pqo "$GAppsZip" g.prop | grep 'ro.addon.open_type' | cut -d = -f 2)-$CurOpenGA_VER")"
 ui_print "* Latest OpenGApps package found: $OpenGAPackage"
 $reinstall && ui_print "* Re-installing OpenGApps-$OpenGAPackage" || \
 	ui_print "* Installing OpenGApps-$OpenGAPackage"
 
-# Disable conflicting apps
-rm_list="
-/system/app/BrowserProviderProxy
-/system/app/PartnerBookmarksProvider
-/system/app/Provision
-/system/app/QuickSearchBox
-/system/priv-app/BrowserProviderProxy
-/system/priv-app/PartnerBookmarksProvider
-/system/priv-app/Provision
-/system/priv-app/QuickSearchBox
-/system/priv-app/LineageSetupWizard
-/system/priv-app/XPerienceSetupWizard
-"
-for folder in $rm_list; do
-	[ -d $folder ] && mktouch $MODPATH$folder/.replace
-done
+# Copy "grant perms" (gp)
+mv $INSTALLER/system $MODPATH
+
 
 # Extract OpenGApps install scripts
 GAppsTmpDir=$INSTALLER/OpenGApps

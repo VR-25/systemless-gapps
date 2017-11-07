@@ -1,25 +1,24 @@
 #!/system/bin/sh
-
 # Auto re-patch /system/etc/sysconfig/* across ROM/GApps updates
 
-# Prepare Environment
+# Environment
 export PATH=/dev/magisk/bin:$PATH
-mga_dir=/data/MagicGApps
+MODPATH=${0%/*}
+syscfg=/dev/magisk/mirror/system/etc/sysconfig
+syscfgTMP=/data/_syscfg
+syscfgP=$MODPATH/system/etc/sysconfig
+syscfgBKP=$MODPATH/.syscfgBKP
+mga_dir=/data/media/MagicGApps
 . $mga_dir/config.txt
 
 
 if $sysconfig_patch; then
-	MODPATH=${0%/*}
-	syscfg=/dev/magisk/mirror/system/etc/sysconfig
-	syscfgTMP=/data/_syscfg
-	syscfgP=$MODPATH/system/etc/sysconfig
-	syscfgBKP=$MODPATH/.syscfgBKP
-
 	if [ "$(cat $MODPATH/.SystemSizeK)" -ne "$(du -s /dev/magisk/mirror/system | cut -f1)" ]; then
-		exec & > $mga_dir/sysconfig_auto_repatch.log
-		echo "$(date)"
+		exec &>$mga_dir/sysconfig_auto_repatch.log
+		date
 		echo
 		echo "<Auto-re-patch sysconfig>"
+		[ -d "$syscfgBKP" ] || cp -rf $syscfgP $syscfgBKP
 		[ -d "$syscfgTMP" ] && rm -rf $syscfgTMP
 		mkdir $syscfgTMP
 		rm -rf $syscfgP/*
@@ -43,7 +42,7 @@ if $sysconfig_patch; then
 		
 		echo "$(du -s /dev/magisk/mirror/system | cut -f1)" > $MODPATH/.SystemSizeK
 		
-		echo "- Done"
+		echo "- Done."
 	fi
 fi
 exit 0

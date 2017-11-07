@@ -1,0 +1,22 @@
+# This is a sample file.
+# Below are package FOLDERS in /system/app & /system/priv-app (my ROM).
+# Modify as needed & place this file in Magic_GApps*.zip or open_gapps*.zip directory -- or in /data/media/Magic_GApps (best).
+
+XPerienceWallpapers
+#XPeriaHome
+XPeDisplay
+Terminal
+Stardust
+PicoTts
+Jelly
+Exchange2
+Email
+BasicDreams
+Alessa
+WeatherProvider
+WeatherManagerService
+Tag
+SnapdragonLauncher
+Snap
+Gallery2
+CellBroadcastReceiver

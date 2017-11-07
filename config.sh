@@ -84,6 +84,9 @@ REPLACE="
 set_permissions() {
   # Default permissions, don't remove them
   set_perm_recursive  $MODPATH  0  0  0755  0644
+  
+  ###
+  set_perm $MODPATH/system/xbin/gp  0  0  0775
 
   # Only some special files require specific permissions
   # The default permissions should be good enough for most cases

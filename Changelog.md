@@ -1,3 +1,11 @@
+# v2017.11.7-Beta (201711070)
+- Additional SearchDIR: Magic GApps zip location
+- disable_list.txt (similar to gapps-config.txt) -- read Magic_GApps*.zip/common/disable_list.txt for usage instructions.
+- Fixed sysconfig patcher "no backup" error.
+- gp command -- to grant/regrant full permissions to core GApps on demand (i.e., after resetting apps preferences).
+- MagicGApps config folder migrated to /data/media to persist across factory resets.
+- [TEST] service.sh will now try to grant permissions 3 times (3 boots) -- each process kicks in right after boot and takes ~2.5 minutes. That means, you have to wait for that time before setting up your ROM for the 1st time. If after waiting, Google Play Services still crashes, reboot and wait again.
+
 # v2017.10.15-Beta (201710150)
 - Added Magisk's built-in busybox to PATH (installer, post-fs-data.sh & service.sh).
 - General optimizations
