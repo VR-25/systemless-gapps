@@ -157,6 +157,7 @@ exxit() {
 		ui_print "- Run \"touch /data/_r\" to reinstall"
 		ui_print "-- or \"touch /data/_u\" to uninstall"
 		ui_print "  "
+		disable_apks
 		signature_spoofing_patch
 		umnt_all
 		rm -f /data/_r
@@ -331,12 +332,31 @@ clean_modDIR() {
 } 2>/dev/null
 
 
+disable_apks() {
+	ui_print "* Disabling conflicting & unwanted system packages"
+	default_disable_list="
+	BrowserProviderProxy
+	PartnerBookmarksProvider
+	Provision
+	QuickSearchBox
+	LineageSetupWizard
+	XPerienceSetupWizard
+	"
+	user_disable_list="$(cat "$(dirname "$GAppsZip")"/disable_list.txt "$SearchDIR9/disable_list.txt" $cfg_dir/disable_list.txt 2>/dev/null | grep -v '#')"
+	
+	for folder in $default_disable_list $user_disable_list; do
+		[ -d /system/app/$folder ] && mktouch $MODPATH/system/app/$folder/.replace
+		[ -d /system/priv-app/$folder ] && mktouch $MODPATH/system/priv-app/$folder/.replace
+	done
+}
+
+
 ##########################################################################################
 # Flashable update-binary preparation
 ##########################################################################################
 
-OUTFD=$2
-ZIP=$3
+OUTFD="$2"
+ZIP="$3"
 
 readlink /proc/$$/fd/$OUTFD 2>/dev/null | grep /tmp >/dev/null
 if [ "$?" -eq "0" ]; then
@@ -392,7 +412,7 @@ unzip -o "$ZIP" -d $INSTALLER; } 2>/dev/null
 
 # Add Magisk's built-in busybox to PATH
 if [ -f /data/magisk/busybox ]; then
-	PATH=/data/magisk/busybox:$INSTALLER/busybox:$PATH
+	export PATH=/data/magisk/busybox:$INSTALLER/busybox:$PATH
 	busybox --install -s $INSTALLER/busybox
 fi
 
@@ -499,7 +519,7 @@ Alternate_SearchDIR=
 # Copy/import config file
 if [ ! -f $cfg_dir/config.txt ]; then
 	mv $INSTALLER/common/MagicGApps /data
-	###
+
 	old_cfg=/data/_MagicGApps_config.txt
 	if [ -f $old_cfg ]; then
 		grep -q 'ing_patch=true' $old_cfg \
@@ -508,7 +528,7 @@ if [ ! -f $cfg_dir/config.txt ]; then
 			&& sed -i '/ig_patch=/s/false/true/' $cfg_dir/config.txt
 		rm $old_cfg
 	fi
-	###
+
 	chmod -R 777 $cfg_dir
 fi
 . $cfg_dir/config.txt
@@ -516,8 +536,8 @@ fi
 
 # Set Alternate SearchDIR
 if [ -f /data/_d ]; then
-	Alternate_SearchDIR=$(cat /data/_d)
-	rm /data/_d;
+	Alternate_SearchDIR="$(cat /data/_d)"
+	rm /data/_d
 fi
 
 
@@ -526,11 +546,11 @@ for file in $SearchDIR/open_gapps-* $SearchDIR2/open_gapps-* \
 	$SearchDIR3/open_gapps-* $SearchDIR4/open_gapps-* \
 	$SearchDIR5/open_gapps-* $SearchDIR6/open_gapps-* \
 	$SearchDIR7/open_gapps-* $SearchDIR8/open_gapps-* \
-	$SearchDIR9/open_gapps-* $Alternate_SearchDIR/open_gapps-*; do
-	if [ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.arch' | cut -d = -f 2)" = "$ARCH" ] && \
-		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.sdk' | cut -d = -f 2)" = "$API" ] && \
-		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.open_type' | cut -d = -f 2)" != "aroma" ] ; then
-		FoundOpenGA_VER=$(unzip -pqo "$file" g.prop | grep 'ro.addon.open_version' | cut -d = -f 2)
+	"$SearchDIR9"/open_gapps-* "$Alternate_SearchDIR"/open_gapps-*; do
+	if [ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.arch' | cut -d= -f2)" = "$ARCH" ] && \
+		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.sdk' | cut -d= -f2)" = "$API" ] && \
+		[ "$(unzip -pqo "$file" g.prop | grep 'ro.addon.open_type' | cut -d= -f2)" != "aroma" ] ; then
+		FoundOpenGA_VER=$(unzip -pqo "$file" g.prop | grep 'ro.addon.open_version' | cut -d= -f2)
 		if [ "$FoundOpenGA_VER" -ge "$CurOpenGA_VER" ]; then
 			CurOpenGA_VER=$FoundOpenGA_VER
 			LatestZip="$file"
@@ -543,7 +563,6 @@ done 2>/dev/null
 
 
 # Remove obsolete files
-rm /data/.MagicGApps 2>/dev/null ###
 rm $cfg_dir/.perms* 2>/dev/null
 
 
@@ -560,25 +579,10 @@ else
 	else exxit 0
 	fi
 fi
+
+
 clean_modDIR
-
-
-# Disable conflicting apps
-ui_print "* Disabling conflicting & unwanted system packages"
-default_disable_list="
-BrowserProviderProxy
-PartnerBookmarksProvider
-Provision
-QuickSearchBox
-LineageSetupWizard
-XPerienceSetupWizard
-"
-user_disable_list="$(cat "$(dirname "$GAppsZip")"/disable_list.txt "$SearchDIR9/disable_list.txt" $cfg_dir/disable_list.txt 2>/dev/null | grep -v '#')"
-
-for folder in $default_disable_list $user_disable_list; do
-	[ -d /system/app/$folder ] && mktouch $MODPATH/system/app/$folder/.replace
-	[ -d /system/priv-app/$folder ] && mktouch $MODPATH/system/priv-app/$folder/.replace
-done
+disable_apks
 
 
 OpenGAPackage="$(echo "$(unzip -pqo "$GAppsZip" g.prop | grep 'ro.addon.open_type' | cut -d = -f 2)-$CurOpenGA_VER")"
@@ -586,8 +590,9 @@ ui_print "* Latest OpenGApps package found: $OpenGAPackage"
 $reinstall && ui_print "* Re-installing OpenGApps-$OpenGAPackage" || \
 	ui_print "* Installing OpenGApps-$OpenGAPackage"
 
+
 # Copy "grant perms" (gp)
-mv $INSTALLER/system $MODPATH
+mv $INSTALLER/common/xbin $MODPATH/system
 
 
 # Extract OpenGApps install scripts
@@ -668,11 +673,9 @@ fi
 
 
 ui_print "* Unmounting partitions (phase 1/2)"
-{
-umount /persist
+{ umount /persist
 umount /vendor
-umount /system
-} 2>/dev/null
+umount /system; } 2>/dev/null
 
 
 # Systemlessly patch "/system/etc/sysconfig/*" for data & battery savings

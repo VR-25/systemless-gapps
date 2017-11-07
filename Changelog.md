@@ -1,3 +1,8 @@
+# v2017.11.7-1-Beta (201711071)
+- disable_list.txt can be used anytime without the need to reinstall GApps. 
+- Fixed "error 1" upon installation -- setting permissions.
+- Search location "Magic_GApps*zip directory" -- OK
+
 # v2017.11.7-Beta (201711070)
 - Additional SearchDIR: Magic GApps zip location
 - disable_list.txt (similar to gapps-config.txt) -- read Magic_GApps*.zip/common/disable_list.txt for usage instructions.
