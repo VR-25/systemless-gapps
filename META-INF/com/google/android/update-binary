@@ -518,17 +518,7 @@ Alternate_SearchDIR=
 
 # Copy/import config file
 if [ ! -f $cfg_dir/config.txt ]; then
-	mv $INSTALLER/common/MagicGApps /data
-
-	old_cfg=/data/_MagicGApps_config.txt
-	if [ -f $old_cfg ]; then
-		grep -q 'ing_patch=true' $old_cfg \
-			&& sed -i '/ing_patch=/s/false/true/' $cfg_dir/config.txt
-		grep -q 'ig_patch=true' $old_cfg \
-			&& sed -i '/ig_patch=/s/false/true/' $cfg_dir/config.txt
-		rm $old_cfg
-	fi
-
+	mv $INSTALLER/common/MagicGApps /data/media
 	chmod -R 777 $cfg_dir
 fi
 . $cfg_dir/config.txt
@@ -707,8 +697,6 @@ if [ -f /data/_s ] || $sysconfig_patch; then
 	cp $syscfgTMP/* $syscfgP
 	rm -rf $syscfgTMP
 	chmod -R 644 $syscfgP
-	echo
-	
 	echo "$(du -s /dev/magisk/mirror/system | cut -f1)" > $MODPATH/.SystemSizeK
 fi
 

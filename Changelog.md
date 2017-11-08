@@ -1,3 +1,8 @@
+# 2017.11.8 (201711080)
+- cp new mod config_dir to /data/media instead of /data
+- General cleanup
+- Next upgrade stage begins (Aroma variant compatibility & more -- WIP)
+
 # v2017.11.7-1-Beta (201711071)
 - disable_list.txt can be used anytime without the need to reinstall GApps. 
 - Fixed "error 1" upon installation -- setting permissions.

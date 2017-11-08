@@ -16,8 +16,6 @@ if $sysconfig_patch; then
 	if [ "$(cat $MODPATH/.SystemSizeK)" -ne "$(du -s /dev/magisk/mirror/system | cut -f1)" ]; then
 		exec &>$mga_dir/sysconfig_auto_repatch.log
 		date
-		echo
-		echo "<Auto-re-patch sysconfig>"
 		[ -d "$syscfgBKP" ] || cp -rf $syscfgP $syscfgBKP
 		[ -d "$syscfgTMP" ] && rm -rf $syscfgTMP
 		mkdir $syscfgTMP
@@ -38,11 +36,9 @@ if $sysconfig_patch; then
 		cp $syscfgTMP/* $syscfgP
 		rm -rf $syscfgTMP
 		chmod -R 644 $syscfgP
-		echo
 		
 		echo "$(du -s /dev/magisk/mirror/system | cut -f1)" > $MODPATH/.SystemSizeK
-		
-		echo "- Done."
+		date
 	fi
 fi
 exit 0
