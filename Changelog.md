@@ -1,3 +1,7 @@
+# 2017.11.9 (201711090)
+- Set permissions after on-demand operations & don't remove $config_dir/.perms file before.
+- [DEBUG] Replace webview with Chrome if *hrome*apk is present in Magic_GApps*zip directory (this might fix Google Play Services crashes).
+
 # 2017.11.8 (201711080)
 - cp new mod config_dir to /data/media instead of /data
 - General cleanup

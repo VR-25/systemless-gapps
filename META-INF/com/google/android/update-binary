@@ -159,6 +159,9 @@ exxit() {
 		ui_print "  "
 		disable_apks
 		signature_spoofing_patch
+		ui_print "* Setting permissions"
+		set_perm_recursive  $MODPATH  0  0  0755  0644
+		set_perm $MODPATH/system/xbin/gp  0  0  0775
 		umnt_all
 		rm -f /data/_r
 		shrink_img
@@ -333,7 +336,7 @@ clean_modDIR() {
 
 
 disable_apks() {
-	ui_print "* Disabling conflicting & unwanted system packages"
+	ui_print "* Disabling conflicting & unwanted system APKs"
 	default_disable_list="
 	BrowserProviderProxy
 	PartnerBookmarksProvider
@@ -342,12 +345,20 @@ disable_apks() {
 	LineageSetupWizard
 	XPerienceSetupWizard
 	"
-	user_disable_list="$(cat "$(dirname "$GAppsZip")"/disable_list.txt "$SearchDIR9/disable_list.txt" $cfg_dir/disable_list.txt 2>/dev/null | grep -v '#')"
+	user_disable_list="$(cat "$(dirname "$GAppsZip")/disable_list.txt" "$SearchDIR9/disable_list.txt" "$cfg_dir/disable_list.txt" 2>/dev/null | grep -v '#')"
 	
 	for folder in $default_disable_list $user_disable_list; do
 		[ -d /system/app/$folder ] && mktouch $MODPATH/system/app/$folder/.replace
 		[ -d /system/priv-app/$folder ] && mktouch $MODPATH/system/priv-app/$folder/.replace
 	done
+	
+	# Replace Stock/AOSP WebView with Chrome
+	if [ -f "$SearchDIR9"/*hrome* ]; then
+		ui_print "* Replacing Stock/AOSP WebView with Chrome"
+		mkdir $MODPATH/system/app/Chrome 2>/dev/null
+		mktouch $MODPATH/system/app/webview/.replace
+		cp "$SearchDIR9"/*hrome* $MODPATH/system/app/Chrome/Chrome.apk
+	fi
 }
 
 
@@ -552,10 +563,6 @@ done 2>/dev/null
 [ "$LatestZip" ] || exxit 1
 
 
-# Remove obsolete files
-rm $cfg_dir/.perms* 2>/dev/null
-
-
 if [ -f $CurVerInfo ]; then
 	OpenGA_VER=$(grep 'ro.addon.open_version' $CurVerInfo | cut -d = -f 2)
 fi
@@ -625,7 +632,7 @@ rm $MODPATH/system/build.prop
 rm -rf $MODPATH/system/addon.d
 [ $(ls -a $NewPersistPath) ] || rm -rf $NewPersistPath
 [ $(ls -a $NewVendorPath) ] || rm -rf $NewVendorPath
-
+rm $cfg_dir/.perms* 2>/dev/null
 
 
 # Handle replace folders
