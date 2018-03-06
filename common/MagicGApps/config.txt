@@ -1,8 +1,0 @@
-# Allow updating system apps with different signature packages
-signature_spoofing_patch=false
-
-# Patch & auto-re-patch /system/etc/sysconfig/* for data & battery savings
-sysconfig_patch=false
-
-# Alternate Open GApps zip search dir
-Alternate_SearchDIR=
