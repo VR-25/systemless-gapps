@@ -1,3 +1,10 @@
+**2018.7.24-1 (201807241)**
+- Fixed "Couldn't bind-mount /persist"
+
+**2018.7.24 (201807240)**
+- Fixed modPath detection issue (Magisk V16.6).
+- Updated documentation
+
 **2018.3.6 (201803060)**
 - Display richer info during (re-)installation
 - Fixed FaceUnlock & VR support detection

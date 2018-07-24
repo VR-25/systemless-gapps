@@ -4,12 +4,20 @@
 
 
 ### DISCLAIMER
-- Don't blame me if you end up triggering a nuclear disaster with this module! You do everything at your own risk.
+- This software is provided as is, in the hope that it will be useful, but without any warranty. Always read the reference prior to installing/updating it. While no cats have been harmed in any way, shape or form, I assume no responsibility under anything that might go wrong due to the use/misuse of it.
+- A copy of the GNU General Public License, version 3 or newer is included with every version. Please, read it prior to using, modifying and/or sharing any part of this work.
+- To avoid fraud, DO NOT mirror any link associated with the project.
 
 
 
 ### DESCRIPTION
 - Installs a regular OpenGApps Package as a Magisk module (systemless GApps). However, this doesn't mean the module modifies `open_gapps-*.zip` files to be systemless compatible. Rather, it tweaks the recovery environment for systemless installation, extracts, patches & executes OpenGApps install scripts.
+
+
+
+### PRE-REQUISITES
+- Magisk
+- Any open_gapps-*.zip (excl. aroma variant)
 
 
 
@@ -35,6 +43,13 @@
 
 ### RECENT CHANGES
 
+**2018.7.24-1 (201807241)**
+- Fixed "Couldn't bind-mount /persist"
+
+**2018.7.24 (201807240)**
+- Fixed modPath detection issue (Magisk V16.6).
+- Updated documentation
+
 **2018.3.6 (201803060)**
 - Display richer info during (re-)installation
 - Fixed FaceUnlock & VR support detection
@@ -46,8 +61,3 @@
 **2017.11.9 (201711090)**
 - Set permissions after on-demand operations & don't remove $config_dir/.perms file before.
 - [DEBUG] Replace webview with Chrome if *hrome*apk is present in Magic_GApps*zip directory (this might fix Google Play Services crashes).
-
-**2017.11.8 (201711080)**
-- cp new mod config_dir to /data/media instead of /data
-- General cleanup
-- Next upgrade stage begins (Aroma variant compatibility & more -- WIP)
