@@ -1,6 +1,7 @@
 #!/sbin/sh -x
 # Magic GApps Installer
-# VR25 @ xda-developers
+# (c) 2018, VR25 @ xda-developers
+# License: GPL v3+
 
 # Detect whether in boot mode
 ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true || BOOTMODE=false
@@ -21,7 +22,7 @@ ui_print() {
 # Not a function, but... meh!
 if $BOOTMODE; then
 	ui_print " "
-	ui_print "(!) Boot mode install is not supported [yet]"
+	ui_print "(!) Boot mode install is not supported"
 	ui_print "- Install from recovery mode"
 	ui_print " "
 	exit 1
@@ -89,28 +90,10 @@ set_perm() {
   [ -z "$5" ] && chcon 'u:object_r:system_file:s0' "$1" || chcon $5 "$1"
 }
 
-set_perm_recursive() {
-  find "$1" -type d 2>/dev/null | while read dir; do
-	set_perm "$dir" $2 $3 $4 $6
-  done
-  find "$1" -type f -o -type l 2>/dev/null | while read File; do
-	set_perm "$File" $2 $3 $5 $6
-  done
-}
-
 mktouch() {
   mkdir -p ${1%/*} 2>/dev/null
   [ -z "$2" ] && touch "$1" || echo "$2" > "$1"
   chmod 644 $1
-}
-
-request_size_check() {
-  reqSizeM=`du -s $1 | cut -f1`
-  reqSizeM=$((reqSizeM / 1024 + 1))
-}
-
-request_zip_size_check() {
-  reqSizeM=`unzip -l "$1" | tail -n 1 | awk '{ print int($1 / 1048567 + 1) }'`
 }
 
 image_size_check() {
@@ -148,7 +131,7 @@ exxit() {
 	if [ "$1" = "0" ]; then
 		if [ -f /data/u ]; then
 			ui_print "- Uninstalling Magic GApps"
-			rm -rf $TMP_MODPATH
+			rm -rf $MODPATH
 			rm -f /data/u
 			ui_print "- Done"
 		else
@@ -157,7 +140,6 @@ exxit() {
 			ui_print "- Run \"touch /data/r\" to reinstall"
 			ui_print "- Or \"touch /data/u\" to uninstall"
 			ui_print " "
-			disable_apks
 		fi
 	else
 		ui_print "  "
@@ -172,40 +154,26 @@ exxit() {
 }
 
 
-wipe_TMP_MODPATH() {
-	mv -f $TMP_MODPATH/.persist $INSTALLER
-	rm -rf $TMP_MODPATH
-	mkdir -p $TMP_MODPATH
-	mv $INSTALLER/.persist $TMP_MODPATH
+wipe_MODPATH() {
+	mv -f $MODPATH/.persist $INSTALLER
+	rm -rf $MODPATH
+	mkdir -p $MODPATH
+	mv $INSTALLER/.persist $MODPATH
 } 2>/dev/null
 
 
 disable_apks() {
-	ui_print "- Disabling/removing conflicting/unwanted system APKs"
-	default_list="
-	BrowserProviderProxy
-	PartnerBookmarksProvider
-	Provision
-	QuickSearchBox
-	SetupWizard
-	"
-	user_list="$(cat "$(dirname "$GAppsZip")/debloat.txt" "$(dirname "$ZIP")/debloat.txt" 2>/dev/null | grep -v '#')"
-
-	for Dir in $default_list $user_list; do
-		DirFound=false
-		for d in $(find "$TMP_MODPATH/system/app" "$TMP_MODPATH/system/priv-app" -type d -iname "*$Dir*" -maxdepth 1 2>/dev/null); do
-			DirFound=true
-			rm -rf "$d" 2>/dev/null
-		done
-		if ! $DirFound; then
-			for d in $(find /system/app /system/priv-app -type d -iname "*$Dir*" -maxdepth 1 2>/dev/null); do
-				DirFound=true
-				mktouch "$TMP_MODPATH$d/.replace"
-			done
-		fi
-		$DirFound && ui_print "-- $(basename $d)"
-	done
-	ui_print " "
+  for file in $(find $MODPATH -type f -name '.replace'); do
+    rm $file
+  done
+  for d in $sysApp $sysPrivApp $vendorApp; do
+    if [ -d "${MODPATH}$d" ]; then
+	  [ -z "$(ls "${MODPATH}$d" 2>/dev/null)" ] \
+	    && rm -rf "${MODPATH}$d"
+	else
+	  mktouch "${MODPATH}$d/.replace"
+	fi
+  done
 }
 
 
@@ -290,6 +258,19 @@ mount_partitions() {
   fi
 }
 
+
+mod_info() {
+  grep_prop "$1" $INSTALLER/module.prop
+}
+
+print_modname() {
+  ui_print " "
+  ui_print "$(mod_info name) ($(mod_info id)) $(mod_info version)"
+  ui_print "$(mod_info author)"
+  ui_print "Powered by Magisk (@topjohnwu)"
+  ui_print " "
+}
+
 ##########################################################################################
 # Flashable update-binary preparation
 ##########################################################################################
@@ -332,91 +313,7 @@ mkdir -p $INSTALLER 2>/dev/null
 unzip -o "$ZIP" 'common/*' module.prop -d $INSTALLER >&2
 
 MODID="`grep_prop id $INSTALLER/module.prop`"
-TMP_MODPATH=$MOUNTPATH/$MODID
-MODPATH=$TMP_MODPATH
-
-# Find MODPATH
-if $BOOTMODE; then
-  for MountPoint in /sbin/.core/img /magisk; do
-    if [ -d "$MountPoint/.core" ] || [ -d "$MountPoint/lost+found" ]; then
-      MountPoint=$MountPoint
-      MODPATH=$MountPoint/$MODID
-      mkdir -p $MODPATH 2>/dev/null
-      break
-    fi
-  done
-
-	if [ ! -d "$MODPATH" ]; then
-		echo -e "(!) Magisk mount point not found"
-		exit 1
-	fi
-
-  if ! is_mounted $MountPoint; then
-    ui_print "(!) Magisk is not activated!... abort"
-    exit 1
-  fi
-fi
-
-##########################################################################################
-# Configs
-##########################################################################################
-
-# Set to true if you need to enable Magic Mount
-# Most mods would like it to be enabled
-AUTOMOUNT=true
-
-# Set to true if you need to load system.prop
-PROPFILE=false
-
-# Set to true if you need post-fs-data script
-POSTFSDATA=false
-
-# Set to true if you need late_start service script
-LATESTARTSERVICE=true
-
-ModVersion="`grep_prop version $INSTALLER/module.prop`"
-print_modname() {
-  ui_print " "
-  ui_print "***********************"
-  ui_print "Magic GApps $ModVersion"
-  ui_print "VR25 @ xda-developers"
-  ui_print "***********************"
-}
-
-# List all directories you want to directly replace in the system
-# Check the documentations for more info about how Magic Mount works, and why you need this
-
-# This is an example
-REPLACE="
-/system/app/Youtube
-/system/priv-app/SystemUI
-/system/priv-app/Settings
-/system/framework
-"
-
-# Construct your own list here, it will override the example above
-# !DO NOT! remove this if you don't need to replace anything, leave it empty as it is now
-REPLACE="
-"
-
-set_permissions() {
-  # Only some special files require specific permissions
-  # The default permissions should be good enough for most cases
-
-  # Here are some examples for the set_perm functions:
-
-  # set_perm_recursive  <dirname>                <owner> <group> <dirpermission> <filepermission> <contexts> (default: u:object_r:system_file:s0)
-  # set_perm_recursive  $MODPATH/system/lib       0       0       0755            0644
-
-  # set_perm  <filename>                         <owner> <group> <permission> <contexts> (default: u:object_r:system_file:s0)
-  # set_perm  $MODPATH/system/bin/app_process32   0       2000    0755         u:object_r:zygote_exec:s0
-  # set_perm  $MODPATH/system/bin/dex2oat         0       2000    0755         u:object_r:dex2oat_exec:s0
-  # set_perm  $MODPATH/system/lib/libart.so       0       0       0644
-
-  # The following is default permissions, DO NOT remove
-  set_perm_recursive  $TMP_MODPATH  0  0  0755  0644
-  set_perm  $TMP_MODPATH/service.sh  0  0  0755
-}
+MODPATH=$MOUNTPATH/$MODID
 
 ##########################################################################################
 # Main
@@ -424,12 +321,6 @@ set_permissions() {
 
 # Print mod name
 print_modname
-
-# Please leave this message in your flashable zip for credits :)
-ui_print "******************************"
-ui_print "Powered by Magisk (@topjohnwu)"
-ui_print "******************************"
-ui_print " "
 
 mount_partitions
 
@@ -448,30 +339,15 @@ if [ "$ABILONG" = "x86_64" ]; then ARCH=x86_64; IS64BIT=true; fi;
 # You can get the Android API version from $API, the CPU architecture from $ARCH
 # Useful if you are creating Android version / platform dependent mods
 
-if ! is_mounted /data; then
-  IMG=/cache/magisk.img
-  ui_print " "
-  ui_print "***********************************"
-  ui_print "*      !! Data unavailable !!     *"
-  ui_print "* Magisk detection is impossible  *"
-  ui_print "* Installation will still proceed *"
-  ui_print "*  But please make sure you have  *"
-  ui_print "*        Magisk installed!!       *"
-  ui_print "***********************************"
-  ui_print " "
-fi
-
-request_zip_size_check "$ZIP"
-
 if [ ! -f /data/u ]; then
 	if [ -f "$IMG" ]; then
 	  ui_print "- $IMG detected"
 	  image_size_check $IMG
-	  if [ "$reqSizeM" -gt "$curFreeM" ]; then
-		SIZE=$(($curFreeM + 2048))
-		ui_print " "
-		ui_print "- Resizing $IMG to ${SIZE}M (buffer)"
-		resize2fs $IMG ${SIZE}M >&2
+	  if [[ $curFreeM -lt 2048 ]]; then
+      SIZE=$(($curSizeM - $curFreeM + 2048))
+      ui_print " "
+      ui_print "- Resizing $IMG to ${SIZE}M (buffer)"
+      resize2fs $IMG ${SIZE}M >&2
 	  fi
 	else
 	  SIZE=2048
@@ -485,17 +361,13 @@ ui_print " "
 mount_image $IMG $MOUNTPATH
 ui_print " "
 
-##########################################################################################
-# Module space
-##########################################################################################
-
 # Environment
 CurVerInfo=$MODPATH/system/etc/g.prop
 CurOpenGA_VER=0
 Reinstall=false
 
 # Find latest OpenGAPackage
-ui_print "- Searching for open_gapps-*zip"
+ui_print "- Searching for open_gapps-* zip"
 OIFS=$IFS
 IFS=$'\n\t'
 for File in $(find /external_sd /sdcard -type f -iname open_gapps-*.zip 2>/dev/null); do
@@ -524,34 +396,17 @@ else
 		exxit 0
 	fi
 fi
-wipe_TMP_MODPATH
+wipe_MODPATH
 
 OpenGAPackage="`unzip -pqo "$GAppsZip" g.prop | sed -n '/ro.addon.open_type/s/.*=//p'`-$CurOpenGA_VER"
 ui_print " "
 ui_print "- Latest package found: $GAppsZip"
 ui_print " "
 
-
-# Is device FaceUnlock compatible
-faceunlock_compat=false
-if ( ! grep -qE "Victory|herring|sun4i" /proc/cpuinfo ); then
-  for xml in /system/etc/permissions/android.hardware.camera.front.xml /system/etc/permissions/android.hardware.camera.xml; do
-    if ( awk -vRS='-->' '{ gsub(/<!--.*/,"")}1' $xml | grep -q "feature name=\"android.hardware.camera.front" ); then
-      faceunlock_compat=true
-      break
-    fi
-  done
-fi
-
-# Is device VRMode compatible
-vrmode_compat=false
-for xml in $(grep -rl 'name="android.software.vr.mode"' /system/etc/); do
-  if ( awk -vRS='-->' '{ gsub(/<!--.*/,"")}1' $xml | grep -q 'name="android.software.vr.mode"' /system/etc/ ); then
-    vrmode_compat=true
-    break
-  fi
-done
-
+# System packages
+sysApp="$(ls -d /system/app/*)"
+sysPrivApp="$(ls -d /system/priv-app/*)"
+vendorApp="$(ls -d /vendor/bundled-app/* 2>/dev/null)"
 
 # Bind mount NewPersistPath NewSystemPath & NewVendorPath
 ui_print "- Bind-mounting pseudo /persist, /system & /vendor paths"
@@ -560,8 +415,8 @@ cp -af /system/build.prop $INSTALLER/build.prop
 umount -l /system_root 2>/dev/null
 umount -l /system 2>/dev/null
 mount_check /system
-NewPersistPath=$TMP_MODPATH/.persist
-NewSystemPath=$TMP_MODPATH/system
+NewPersistPath=$MODPATH/.persist
+NewSystemPath=$MODPATH/system
 NewVendorPath=$NewSystemPath/vendor
 mkdir $NewPersistPath /persist 2>/dev/null
 mkdir $NewSystemPath
@@ -575,6 +430,11 @@ if [ -d /vendor ]; then
 	mkdir $NewVendorPath
 	bind_mount $NewVendorPath /vendor
 fi
+
+# Create pseudo-system packages
+for d in $sysApp $sysPrivApp $vendorApp; do
+  mktouch ${MODPATH}$d/.replace
+done
 
 # Extract OpenGApps install scripts
 ui_print "- Extracting $(basename $GAppsZip) install scripts"
@@ -601,8 +461,8 @@ if grep -q slot_suffix /proc/cmdline; then
 	sed -i '/ln \-/s/\$SYSTEM\/\$libfolder/\/system\/system\/\$libfolder/g' /tmp/installer.sh
 fi
 
-$faceunlock_compat && sed -i '/vrmode_compat=false/a faceunlock_compat=true' /tmp/installer.sh
-$vrmode_compat && sed -i '/vrmode_compat=false/s/false/true/' /tmp/installer.sh
+sed -i '/vrmode_compat=false/a faceunlock_compat=true' /tmp/installer.sh
+sed -i '/vrmode_compat=false/s/false/true/' /tmp/installer.sh
 
 sed -i 's/unzip \-o/unzip \-n/' $GAppsInstaller
 
@@ -612,7 +472,8 @@ ui_print " "
 $Reinstall && ui_print "- Re-installing $(basename $GAppsZip)" \
 	|| ui_print "- Installing $(basename $GAppsZip)"
 cp -af $INSTALLER/build.prop $NewSystemPath
-chmod 777 $GAppsInstaller /tmp/installer.sh
+set_perm $GAppsInstaller 0 0 755
+set_perm /tmp/installer.sh 0 0 755
 sh $GAppsInstaller dummy "$OOUTFD" "$GAppsZip"
 
 # Disable conflicting and/or unwanted system APKs
@@ -620,54 +481,23 @@ sh $GAppsInstaller dummy "$OOUTFD" "$GAppsZip"
 umount -l /vendor
 umount -l /persist; } 2>/dev/null
 mount_partitions no_notice
+ui_print "- Pseudo-removing conflicting/unwanted system apps"
 disable_apks
 
 # Update module.prop to reflect OpenGApps version
 sed -i "2s/$/ ($OpenGAPackage)/" $INSTALLER/module.prop
 
 # Cleanup
-rm $TMP_MODPATH/system/build.prop
-rm -rf $TMP_MODPATH/system/addon.d
+rm $MODPATH/system/build.prop
+rm -rf $MODPATH/system/addon.d
 [ "`ls -A $NewPersistPath`" ] || rm -rf $NewPersistPath
 [ "`ls -A $NewVendorPath`" ] || rm -rf $NewVendorPath
 
-##########################################################################################
-
-# Handle replace folders
-for TARGET in $REPLACE; do
-  mktouch $TMP_MODPATH$TARGET/.replace
-done
-
 # Auto Mount
-if $AUTOMOUNT; then
-  mktouch $TMP_MODPATH/auto_mount
-fi
-
-# prop files
-if $PROPFILE; then
-  cp -af $INSTALLER/common/system.prop $TMP_MODPATH/
-fi
+mktouch $MODPATH/auto_mount
 
 # Module info
-cp -af $INSTALLER/module.prop $TMP_MODPATH/
-if $BOOTMODE; then
-  # Update info for Magisk Manager
-  mktouch $MODPATH/update
-  cp -af $INSTALLER/module.prop $MODPATH/
-fi
-
-# post-fs-data mode scripts
-if $POSTFSDATA; then
-  cp -af $INSTALLER/common/post-fs-data.sh $MODPATH/
-fi
-
-# service mode scripts
-if $LATESTARTSERVICE; then
-  cp -af $INSTALLER/common/service.sh $MODPATH/
-fi
-
-ui_print "- Setting permissions"
-set_permissions
+cp $INSTALLER/module.prop $MODPATH/
 
 unmount_all
 shrink_img

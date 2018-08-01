@@ -1,47 +1,59 @@
 # Magic GApps
-## VR25 @ xda-developers
+## (c) 2018, VR25 @ xda-developers
+### License: GPL v3+
 
 
 
-### DISCLAIMER
-- This software is provided as is, in the hope that it will be useful, but without any warranty. Always read the reference prior to installing/updating it. While no cats have been harmed in any way, shape or form, I assume no responsibility under anything that might go wrong due to the use/misuse of it.
-- A copy of the GNU General Public License, version 3 or newer is included with every version. Please, read it prior to using, modifying and/or sharing any part of this work.
-- To avoid fraud, DO NOT mirror any link associated with the project.
+#### DISCLAIMER
+
+- This software is provided as is, in the hope that it will be useful, but without any warranty. Always read the reference prior to installing/updating. While no cats have been harmed, I assume no responsibility under anything that might go wrong due to the use/misuse of it.
+- A copy of the GNU General Public License, version 3 or newer ships with every build. Please, read it prior to using, modifying and/or sharing any part of this work.
+- To prevent fraud, DO NOT mirror any link associated with the project.
 
 
 
-### DESCRIPTION
-- Installs a regular OpenGApps Package as a Magisk module (systemless GApps). However, this doesn't mean the module modifies `open_gapps-*.zip` files to be systemless compatible. Rather, it tweaks the recovery environment for systemless installation, extracts, patches & executes OpenGApps install scripts.
+#### DESCRIPTION
+
+- Installs a regular open_gapps-* zip systemlessly. However, this doesn't mean the target archive is modified to be systemless-compatible. Rather, the recovery environment and OpenGApps install scripts are temporarily patched to allow the desired end result.
 
 
 
-### PRE-REQUISITES
+#### PRE-REQUISITES
+
+- Any open_gapps-* zip, except aroma variant
+- Custom recovery
 - Magisk
-- Any open_gapps-*.zip (excl. aroma variant)
 
 
 
-### INSTALLATION
+#### SETUP STEPS
 
-* Before Actions
-- `touch /data/r` -- reinstall OpenGApps
-- `touch /data/u` -- uninstall module
-- De-bloat your ROM and exclude Google apps from installation by adding patterns matching package folders (case insensitive) to debloat.txt -- there's a sample inside the zip. Place the file along with Magic_GApps*zip or open_gapps-*zip.
-
-* The installer searches for the latest compatible `open_gapps-*.zip` file in /sdcard and /external_sd directories & subdirectories.
-
-* Installable from recovery mode only
+0. Make sure an open_gapps-* zip (except aroma variant) exists somewhere in /sdcard or /external_sd directories or subdirectories.
+1. Optional -- run `touch /data/r` to reinstall open_gapps-* zip or `touch /data/u` to uninstall the module.
+2. Optional -- set up a gapps-config.txt file (removal lists work as pseudo-removal lists)
+3. Install from custom recovery (i.e., TWRP).
+4. Optional -- the debloat.txt file can be updated and used anytime after installation as well. Thus, flashing the module again will only apply the new changes, as opposed to reinstalling everything.
 
 
 
-### ONLINE SUPPORT###
+#### ONLINE SUPPORT
+
 - [Git Repository](https://github.com/Magisk-Modules-Repo/MagicGApps)
 - [XDA Thread](https://forum.xda-developers.com/apps/magisk/module-systemless-beansgapps-mini-7-1-x-t3611362)
 - [webview_packages: fix incorrect signatures]( https://github.com/LineageOS/android_vendor_cm/commit/a3a76f5d1cc233ad8024ffdc74bb3a786e1605c3)
 
 
 
-### RECENT CHANGES
+#### RECENT CHANGES
+
+**2018.8.1 (201808010)**
+- App permissions auto-reset issue possibly fixed
+- Full `gapps-config.txt` support (removal lists work as pseudo-removal lists)
+- Ground-up optimizations
+- New attempt to eradicate GMS FC's
+- Set `vrmode_compat=true` & `faceunlock_compat=true`
+- Striped down (removed unnecessary code & files)
+- Updated documentation
 
 **2018.7.24-1 (201807241)**
 - Fixed "Couldn't bind-mount /persist"
@@ -49,15 +61,3 @@
 **2018.7.24 (201807240)**
 - Fixed modPath detection issue (Magisk V16.6).
 - Updated documentation
-
-**2018.3.6 (201803060)**
-- Display richer info during (re-)installation
-- Fixed FaceUnlock & VR support detection
-- Improved compatibility with all major Magisk versions
-- ROM de-bloater on steroids -- check out `debloat.txt` inside the zip
-- Simplified as much as possible -- no more "extra features" for the sake of stability, reliability and ease of maintenance (if you're interested, my `sysconfig patcher` module now supports MagicGApps)
-- Updated documentation
-
-**2017.11.9 (201711090)**
-- Set permissions after on-demand operations & don't remove $config_dir/.perms file before.
-- [DEBUG] Replace webview with Chrome if *hrome*apk is present in Magic_GApps*zip directory (this might fix Google Play Services crashes).

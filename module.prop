@@ -1,7 +1,7 @@
 id=MagicGApps
 name=Magic GApps
-version=2018.7.24-1
-versionCode=201807241
+version=2018.8.1
+versionCode=201808010
 author=VR25 @ xda-developers
-description=Limited system space? Love trying different things? Go ahead & install a regular OpenGApps package as a Magisk module! [Recovery mode only]
+description=Installs a regular open_gapps-* zip systemlessly.
 minMagisk=1500
