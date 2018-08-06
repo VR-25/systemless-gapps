@@ -1,12 +1,10 @@
 #!/sbin/sh -x
 # Magic GApps Installer
-# (c) 2018, VR25 @ xda-developers
+# (c) 2017-2018, VR25 @ xda-developers
 # License: GPL v3+
 
 # Detect whether in boot mode
-ps | grep zygote | grep -v grep >/dev/null && BOOTMODE=true || BOOTMODE=false
-$BOOTMODE || ps -A 2>/dev/null | grep zygote | grep -v grep >/dev/null && BOOTMODE=true
-$BOOTMODE || id | grep -q 'uid=0' || BOOTMODE=true
+getprop | grep zygote | grep -q running && BOOTMODE=true || BOOTMODE=false
 
 # Default permissions
 umask 022
@@ -310,7 +308,7 @@ $BOOTMODE && IMGNAME=magisk_merge.img || IMGNAME=magisk.img
 rm -rf $TMPDIR 2>/dev/null
 mkdir -p $INSTALLER 2>/dev/null
 
-unzip -o "$ZIP" 'common/*' module.prop -d $INSTALLER >&2
+unzip -o "$ZIP" gp module.prop -d $INSTALLER >&2
 
 MODID="`grep_prop id $INSTALLER/module.prop`"
 MODPATH=$MOUNTPATH/$MODID
@@ -498,6 +496,12 @@ mktouch $MODPATH/auto_mount
 
 # Module info
 cp $INSTALLER/module.prop $MODPATH/
+
+# Install perms granting tool (gp)
+[[ ! -d /system/xbin && ! -d /system_root/system/xbin ]] && gpDir=bin || gpDir=xbin
+mkdir $MODPATH/system/$gpDir 2>/dev/null
+mv $INSTALLER/gp $MODPATH/system/$gpDir/
+set_perms $MODPATH/system/$gpDir/gp 0 0 755
 
 unmount_all
 shrink_img

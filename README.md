@@ -46,6 +46,10 @@
 
 #### RECENT CHANGES
 
+**2018.8.6 (201808060)**
+- Added gp -- perms granting executable for core GApps
+- Minor optimizations
+
 **2018.8.1 (201808010)**
 - App permissions auto-reset issue possibly fixed
 - Full `gapps-config.txt` support (removal lists work as pseudo-removal lists)
@@ -57,7 +61,3 @@
 
 **2018.7.24-1 (201807241)**
 - Fixed "Couldn't bind-mount /persist"
-
-**2018.7.24 (201807240)**
-- Fixed modPath detection issue (Magisk V16.6).
-- Updated documentation
