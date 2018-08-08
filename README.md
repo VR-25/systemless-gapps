@@ -46,6 +46,9 @@
 
 #### RECENT CHANGES
 
+**2018.8.8 (201808080)**
+- Added Face Unlock camera permission and Setup Wizard camera & location permissions to`gp`
+
 **2018.8.6 (201808060)**
 - Added gp -- perms granting executable for core GApps
 - Minor optimizations

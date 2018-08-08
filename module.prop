@@ -1,7 +1,7 @@
 id=MagicGApps
 name=Magic GApps
-version=2018.8.6
-versionCode=201808060
+version=2018.8.8
+versionCode=201808080
 author=VR25 @ xda-developers
 description=Installs a regular open_gapps-* zip systemlessly.
 minMagisk=1500

@@ -20,7 +20,7 @@ grantPerms() {
 	for perm in $2; do
       if [ -d "/data/data/$1" ]; then
         echo "- $1 $perm"
-        pm grant "$1" android.permission."$perm" 2>/dev/null
+        pm grant "$1" android.permission."$perm" #2>/dev/null
       fi
 	done
 }
@@ -30,6 +30,8 @@ echo
 setupwizardPackage="com.google.android.setupwizard"
 grantPerms "$setupwizardPackage" "$CONTACTS_PERMISSIONS"
 grantPerms "$setupwizardPackage" "$PHONE_PERMISSIONS"
+grantPerms "$setupwizardPackage" "$CAMERA_PERMISSIONS"
+grantPerms "$setupwizardPackage" "$LOCATION_PERMISSIONS"
 
 # Google Account
 echo
@@ -92,6 +94,11 @@ grantPerms "$googleappPackage" "$MICROPHONE_PERMISSIONS"
 grantPerms "$googleappPackage" "$PHONE_PERMISSIONS"
 grantPerms "$googleappPackage" "$SMS_PERMISSIONS"
 grantPerms "$googleappPackage" "$STORAGE_PERMISSIONS"
+
+# Face Unlock
+echo
+faceunlockPackage=com.android.facelock
+grantPerms "$faceunlockPackage" "$CAMERA_PERMISSIONS"
 
 echo -e "\n- End\n"
 exit 0
