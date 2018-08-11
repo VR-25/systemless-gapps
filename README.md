@@ -1,5 +1,5 @@
-# Magic GApps
-## (c) 2018, VR25 @ xda-developers
+# MagicGApps
+## Copyright (C) 2017-2018, VR25 @ xda-developers
 ### License: GPL v3+
 
 
@@ -8,13 +8,13 @@
 
 - This software is provided as is, in the hope that it will be useful, but without any warranty. Always read the reference prior to installing/updating. While no cats have been harmed, I assume no responsibility under anything that might go wrong due to the use/misuse of it.
 - A copy of the GNU General Public License, version 3 or newer ships with every build. Please, read it prior to using, modifying and/or sharing any part of this work.
-- To prevent fraud, DO NOT mirror any link associated with the project.
+- To prevent fraud, DO NOT mirror any link associated with this project.
 
 
 
 #### DESCRIPTION
 
-- Installs a regular open_gapps-* zip systemlessly. However, this doesn't mean the target archive is modified to be systemless-compatible. Rather, the recovery environment and OpenGApps install scripts are temporarily patched to allow the desired end result.
+- Installs a regular open_gapps-* zip (except aroma variant) systemlessly.
 
 
 
@@ -29,10 +29,11 @@
 #### SETUP STEPS
 
 0. Make sure an open_gapps-* zip (except aroma variant) exists somewhere in /sdcard or /external_sd directories or subdirectories.
-1. Optional -- run `touch /data/r` to reinstall open_gapps-* zip or `touch /data/u` to uninstall the module.
-2. Optional -- set up a gapps-config.txt file (removal lists work as pseudo-removal lists)
+1. Optional -- run `touch /data/r` to 
+reinstall open_gapps-* zip (or `touch 
+/data/u` to uninstall the module).
+2. Optional -- set up a gapps-config.txt file (removal lists work as pseudo-removal lists -- systemless debloat).
 3. Install from custom recovery (i.e., TWRP).
-4. Optional -- the debloat.txt file can be updated and used anytime after installation as well. Thus, flashing the module again will only apply the new changes, as opposed to reinstalling everything.
 
 
 
@@ -46,21 +47,17 @@
 
 #### RECENT CHANGES
 
+**2018.8.11 (201808110)**
+- Fixed GApps runtime permission issues
+- Fixed "make_ext4fs not found" (devices running Android P)
+- Let Open GApps installer use the real /persist
+- Major optimizations & cosmetic changes
+- Removed `gp` executable
+- Updated documentation
+
 **2018.8.8 (201808080)**
 - Added Face Unlock camera permission and Setup Wizard camera & location permissions to`gp`
 
 **2018.8.6 (201808060)**
 - Added gp -- perms granting executable for core GApps
 - Minor optimizations
-
-**2018.8.1 (201808010)**
-- App permissions auto-reset issue possibly fixed
-- Full `gapps-config.txt` support (removal lists work as pseudo-removal lists)
-- Ground-up optimizations
-- New attempt to eradicate GMS FC's
-- Set `vrmode_compat=true` & `faceunlock_compat=true`
-- Striped down (removed unnecessary code & files)
-- Updated documentation
-
-**2018.7.24-1 (201807241)**
-- Fixed "Couldn't bind-mount /persist"

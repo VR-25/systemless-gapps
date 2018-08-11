@@ -1,10 +1,10 @@
 #!/sbin/sh -x
 # Magic GApps Installer
-# (c) 2017-2018, VR25 @ xda-developers
+# Copyright (C) 2017-2018, VR25 @ xda-developers
 # License: GPL v3+
 
-# Detect whether in boot mode
-getprop | grep zygote | grep -q running && BOOTMODE=true || BOOTMODE=false
+# detect whether in boot mode
+getprop | grep zygote | grep -q running && bootMode=true || bootMode=false
 
 # Default permissions
 umask 022
@@ -14,16 +14,16 @@ umask 022
 ##########################################################################################
 
 ui_print() {
-  $BOOTMODE && echo -e "$1" || echo -e "ui_print $1\nui_print" >> /proc/self/fd/$OUTFD
+  $bootMode && echo -e "$1" || echo -e "ui_print $1\nui_print" >> /proc/self/fd/$outFD
 }
 
-# Not a function, but... meh!
-if $BOOTMODE; then
-	ui_print " "
-	ui_print "(!) Boot mode install is not supported"
-	ui_print "- Install from recovery mode"
-	ui_print " "
-	exit 1
+# not a function, but must be here
+if $bootMode; then
+  ui_print " "
+  ui_print "(!) Boot mode install is not supported"
+  ui_print "- Install from recovery mode"
+  ui_print " "
+  exit 1
 fi
 
 grep_prop() {
@@ -34,52 +34,51 @@ grep_prop() {
   sed -n "$REGEX" $FILES 2>/dev/null | head -n 1
 }
 
-is_mounted() { mountpoint -q "$1"; }
+is_mounted() { mountpoint -q "$1" 2>/dev/null; }
 
 mount_check() {
-	if is_mounted "$1"; then
-		ui_print " "
-		ui_print "(!) Couldn't bind-mount $1"
-		ui_print " "
-		exit 1
-	fi
+  if is_mounted "$1"; then
+    ui_print " "
+    ui_print "(!) Failed to bind-mount $1"
+    ui_print " "
+    exit 1
+  fi
 }
 
 bind_mount() {
-	mount -o bind "$1" "$2"
-	if ! is_mounted "$2"; then
-		ui_print " "
-		ui_print "(!) Couldn't bind-mount $2"
-		ui_print " "
-		exit 1
-	fi
+  mount -o bind "$1" "$2"
+  if ! is_mounted "$2"; then
+    ui_print " "
+    ui_print "(!) Failed to bind-mount $2"
+    ui_print " "
+    exit 1
+  fi
 }
 
 mount_image() {
-	ui_print "- Mounting $1 to $2"
-	[ -d "$2" ] || mkdir -p "$2"
-	if (! is_mounted $2); then
-		LOOPDEVICE=
-		for LOOP in 0 1 2 3 4 5 6 7; do
-			if (! is_mounted $2); then
-				LOOPDEVICE=/dev/block/loop$LOOP
-				[ -f "$LOOPDEVICE" ] || mknod $LOOPDEVICE b 7 $LOOP 2>/dev/null
-				losetup $LOOPDEVICE $1
-				if [ "$?" -eq "0" ]; then
-					mount -t ext4 -o loop $LOOPDEVICE $2
-					is_mounted $2 || /system/bin/toolbox mount -t ext4 -o loop $LOOPDEVICE $2
-					is_mounted $2 || /system/bin/toybox mount -t ext4 -o loop $LOOPDEVICE $2
-				fi
-				is_mounted $2 && break
-			fi
-		done
-	fi
-	if ! is_mounted $2; then
-	  ui_print " "
-	  ui_print "(!) Couldn't mount $IMG"
-	  ui_print " "
-	  exit 1
-	fi
+  mkdir -p "$2" 2>/dev/null
+  if (! is_mounted $2); then
+    LOOPDEVICE=
+    for LOOP in 0 1 2 3 4 5 6 7; do
+      if (! is_mounted $2); then
+        LOOPDEVICE=/dev/block/loop$LOOP
+        [ -f "$LOOPDEVICE" ] || mknod $LOOPDEVICE b 7 $LOOP 2>/dev/null
+        losetup $LOOPDEVICE $1
+        if [ "$?" -eq "0" ]; then
+          mount -t ext4 -o loop $LOOPDEVICE $2
+          is_mounted $2 || /system/bin/toolbox mount -t ext4 -o loop $LOOPDEVICE $2
+          is_mounted $2 || /system/bin/toybox mount -t ext4 -o loop $LOOPDEVICE $2
+        fi
+        is_mounted $2 && break
+      fi
+    done
+  fi
+  if ! is_mounted $2; then
+    ui_print " "
+    ui_print "(!) Failed to mount $IMG"
+    ui_print " "
+    exit 1
+  fi
 }
 
 set_perm() {
@@ -105,72 +104,71 @@ image_size_check() {
 }
 
 shrink_img() {
-	image_size_check $IMG
-	NEWDATASIZE=$((curUsedM / 32 * 32 + 32))
-	if [ "$curSizeM" -gt "$NEWDATASIZE" ]; then
-	  ui_print "- Shrinking $IMG to ${NEWDATASIZE}M"
-	  resize2fs $IMG ${NEWDATASIZE}M >&2
-	fi
+  image_size_check $IMG
+  NEWDATASIZE=$((curUsedM / 32 * 32 + 32))
+  if [ "$curSizeM" -gt "$NEWDATASIZE" ]; then
+    [ -f /data/adb/magisk/magisk ] \
+      && /data/adb/magisk/magisk --resizeimg $IMG $SIZE >&2 \
+      || resize2fs $IMG ${SIZE}M >&2
+  fi
 }
 
 unmount_all() {
-	ui_print "- Unmounting image & partitions"
-	umount $MOUNTPATH
-	losetup -d $LOOPDEVICE
-	rmdir $MOUNTPATH
-	umount -l /system_root
-	umount -l /system
-	umount -l /vendor
-	umount -l /persist 
+  umount $mountPath
+  losetup -d $LOOPDEVICE
+  rmdir $mountPath
+  umount -l /system_root
+  umount -l /system
+  umount -l /vendor
+  umount -l /persist
 } 2>/dev/null
 
 
 exxit() {
-	if [ "$1" = "0" ]; then
-		if [ -f /data/u ]; then
-			ui_print "- Uninstalling Magic GApps"
-			rm -rf $MODPATH
-			rm -f /data/u
-			ui_print "- Done"
-		else
-			ui_print "  "
-			ui_print "(i) No update found"
-			ui_print "- Run \"touch /data/r\" to reinstall"
-			ui_print "- Or \"touch /data/u\" to uninstall"
-			ui_print " "
-		fi
-	else
-		ui_print "  "
-		ui_print "(!) No compatible package found"
-		ui_print "- Make sure the target archive exists and isn't corrupted"
-		ui_print "  "
-	fi
-	unmount_all
-	shrink_img
-	ui_print " "
-	[ "$1" = "0" ] && exit 0 || exit 1
+  if [ "$1" = "0" ]; then
+    ui_print "  "
+    ui_print "(i) No update found"
+    ui_print "- Run \"touch /data/r\" to reinstall"
+    ui_print "- Or \"touch /data/u\" to uninstall"
+    ui_print " "
+  else
+    ui_print "  "
+    ui_print "(!) No compatible open-gapps-* zip found"
+    ui_print "  "
+  fi
+  unmount_all
+  shrink_img
+  [ "$1" = "0" ] && exit 0 || exit 1
 }
 
 
-wipe_MODPATH() {
-	mv -f $MODPATH/.persist $INSTALLER
-	rm -rf $MODPATH
-	mkdir -p $MODPATH
-	mv $INSTALLER/.persist $MODPATH
+wipe_modPath() {
+  mv $modPath/system/etc $INSTALLER/
+  rm -rf $modPath
+  [ -z "$1" ] && mkdir -p $modPath /data/adb/magisk_simple/system /cache/magisk_mount/system
+  if [ -d $INSTALLER/etc ]; then
+    for f in $(find $INSTALLER/etc -type f); do
+      rm $(echo $f | sed "s:$INSTALLER:/data/adb/magisk_simple/system:") $(echo $f | sed "s:$INSTALLER:/cache/magisk_mount/system:")
+    done
+    for d in $(find $INSTALLER/etc -type d); do
+      rmdir $(echo $d | sed "s:$INSTALLER:/data/adb/magisk_simple/system:") $(echo $d | sed "s:$INSTALLER:/cache/magisk_mount/system:")
+    done
+  fi
+  rm /data/u /data/r
 } 2>/dev/null
 
 
 disable_apks() {
-  for file in $(find $MODPATH -type f -name '.replace'); do
+  for file in $(find $modPath -type f -name '.replace'); do
     rm $file
   done
   for d in $sysApp $sysPrivApp $vendorApp; do
-    if [ -d "${MODPATH}$d" ]; then
-	  [ -z "$(ls "${MODPATH}$d" 2>/dev/null)" ] \
-	    && rm -rf "${MODPATH}$d"
-	else
-	  mktouch "${MODPATH}$d/.replace"
-	fi
+    if [ -d "${modPath}$d" ]; then
+      [ -z "$(ls "${modPath}$d" 2>/dev/null)" ] \
+        && rm -rf "${modPath}$d"
+    else
+      mktouch "${modPath}$d/.replace"
+    fi
   done
 }
 
@@ -213,10 +211,9 @@ find_dtbo_image() {
 
 
 mount_partitions() {
-  [ -n "$1" ] && no_notice=true || no_notice=false
-  ui_print_() { $no_notice || ui_print "$1"; }
   { mount /data
-  mount /cache; } 2>/dev/null
+  mount /cache
+  mount /persist; } 2>/dev/null
 
   # Check A/B slot
   SLOT=`getprop ro.boot.slot_suffix`
@@ -228,15 +225,14 @@ mount_partitions() {
   # Check the boot image to make sure the slot actually makes sense
   find_boot_image
   find_dtbo_image
-  [ -z $SLOT ] || ui_print_ "- A/B partition detected, current slot: $SLOT"
 
-  ui_print_ "- Mounting /system, /vendor"
   is_mounted /system || [ -f /system/build.prop ] || mount -o ro /system 2>/dev/null
   if ! is_mounted /system && ! [ -f /system/build.prop ]; then
     SYSTEMBLOCK=`find /dev/block -iname system$SLOT | head -n 1`
     mount -t ext4 -o ro $SYSTEMBLOCK /system
   fi
-  is_mounted /system || [ -f /system/build.prop ] || abort "(!) Couldn't mount /system"
+
+  is_mounted /system || [ -f /system/build.prop ] || { echo "(!) Failed to mount /system"; exit 1; }
   cat /proc/mounts | grep -E '/dev/root|/system_root' >/dev/null && SKIP_INITRAMFS=true || SKIP_INITRAMFS=false
   if [ -f /system/init.rc ]; then
     SKIP_INITRAMFS=true
@@ -244,7 +240,7 @@ mount_partitions() {
     mount --move /system /system_root
     mount -o bind /system_root/system /system
   fi
-  $SKIP_INITRAMFS && ui_print_ "- Device skip_initramfs detected"
+
   if [ -L /system/vendor ]; then
     # Seperate /vendor partition
     is_mounted /vendor || mount -o ro /vendor 2>/dev/null
@@ -252,7 +248,7 @@ mount_partitions() {
       VENDORBLOCK=`find /dev/block -iname vendor$SLOT | head -n 1`
       mount -t ext4 -o ro $VENDORBLOCK /vendor
     fi
-    is_mounted /vendor || abort "(!) Couldn't mount /vendor"
+    is_mounted /vendor || { echo "(!) Failed to mount /vendor"; exit 1; }
   fi
 }
 
@@ -263,61 +259,60 @@ mod_info() {
 
 print_modname() {
   ui_print " "
-  ui_print "$(mod_info name) ($(mod_info id)) $(mod_info version)"
+  ui_print "$(mod_info id) $(mod_info version)"
   ui_print "$(mod_info author)"
   ui_print "Powered by Magisk (@topjohnwu)"
   ui_print " "
+  [ -f /data/u ] || ui_print "(i) Searching for the latest compatible open-gapps-* zip"
 }
 
 ##########################################################################################
 # Flashable update-binary preparation
 ##########################################################################################
 
-# Set SELinux mode to "permissive"
+# set SELinux mode to "permissive"
 setenforce 0
 
-OUTFD=$2
-OOUTFD=$2
+outFD=$2
+oOutFD=$2
 ZIP="$3"
 
-readlink /proc/$$/fd/$OUTFD 2>/dev/null | grep /tmp >/dev/null
+readlink /proc/$$/fd/$outFD 2>/dev/null | grep /tmp >/dev/null
 if [ "$?" -eq "0" ]; then
-  OUTFD=0
+  outFD=0
 
   for FD in `ls /proc/$$/fd`; do
-	readlink /proc/$$/fd/$FD 2>/dev/null | grep pipe >/dev/null
-	if [ "$?" -eq "0" ]; then
-	  ps | grep " 3 $FD " | grep -v grep >/dev/null
-	  if [ "$?" -eq "0" ]; then
-		OUTFD=$FD
-		break
-	  fi
-	fi
+  readlink /proc/$$/fd/$FD 2>/dev/null | grep pipe >/dev/null
+  if [ "$?" -eq "0" ]; then
+    ps | grep " 3 $FD " | grep -v grep >/dev/null
+    if [ "$?" -eq "0" ]; then
+    outFD=$FD
+    break
+    fi
+  fi
   done
 fi
 
-# This path should work in any cases
 TMPDIR=/dev/tmp
-
 INSTALLER=$TMPDIR/install
-MOUNTPATH=$TMPDIR/magisk_img
-$BOOTMODE && IMGNAME=magisk_merge.img || IMGNAME=magisk.img
+mountPath=$TMPDIR/magisk_img
+$bootMode && IMGNAME=magisk_merge.img || IMGNAME=magisk.img
 [ -d /data/adb/magisk ] && IMG=/data/adb/$IMGNAME || IMG=/data/$IMGNAME
 
-# Initial cleanup
+# initial cleanup
 rm -rf $TMPDIR 2>/dev/null
 mkdir -p $INSTALLER 2>/dev/null
 
-unzip -o "$ZIP" gp module.prop -d $INSTALLER >&2
+unzip -o "$ZIP" service.sh module.prop -d $INSTALLER >&2
 
-MODID="`grep_prop id $INSTALLER/module.prop`"
-MODPATH=$MOUNTPATH/$MODID
+modID="`grep_prop id $INSTALLER/module.prop`"
+modPath=$mountPath/$modID
 
 ##########################################################################################
 # Main
 ##########################################################################################
 
-# Print mod name
+# print mod name
 print_modname
 
 mount_partitions
@@ -338,105 +333,92 @@ if [ "$ABILONG" = "x86_64" ]; then ARCH=x86_64; IS64BIT=true; fi;
 # Useful if you are creating Android version / platform dependent mods
 
 if [ ! -f /data/u ]; then
-	if [ -f "$IMG" ]; then
-	  ui_print "- $IMG detected"
-	  image_size_check $IMG
-	  if [[ $curFreeM -lt 2048 ]]; then
+  if [ -f "$IMG" ]; then
+    image_size_check $IMG
+    if [[ $curFreeM -lt 2048 ]]; then
       SIZE=$(($curSizeM - $curFreeM + 2048))
-      ui_print " "
-      ui_print "- Resizing $IMG to ${SIZE}M (buffer)"
-      resize2fs $IMG ${SIZE}M >&2
-	  fi
-	else
-	  SIZE=2048
-	  ui_print " "
-	  ui_print "- Creating $IMG with size ${SIZE}M (buffer)"
-	  make_ext4fs -l ${SIZE}M $IMG >&2
-	fi
+      [ -f /data/adb/magisk/magisk ] \
+        && /data/adb/magisk/magisk --resizeimg $IMG $SIZE >&2 \
+        || resize2fs $IMG ${SIZE}M >&2
+    fi
+  else
+    SIZE=2048
+    [ -f /data/adb/magisk/magisk ] \
+      && /data/adb/magisk/magisk --createimg $IMG $SIZE >&2 \
+      || make_ext4fs -l ${SIZE}M $IMG >&2
+  fi
 fi
 
-ui_print " "
-mount_image $IMG $MOUNTPATH
-ui_print " "
+mount_image $IMG $mountPath
 
-# Environment
-CurVerInfo=$MODPATH/system/etc/g.prop
+# uninstall
+if [ -f /data/u ]; then
+  ui_print "  "
+  ui_print "(i) Uninstalling"
+  wipe_modPath u
+  unmount_all
+  ui_print "  "
+  exit 0
+fi
+
+CurVerInfo=$modPath/system/etc/g.prop
 CurOpenGA_VER=0
-Reinstall=false
 
-# Find latest OpenGAPackage
-ui_print "- Searching for open_gapps-* zip"
-OIFS=$IFS
+# find latest OpenGAPackage
+oIFS=$IFS
 IFS=$'\n\t'
-for File in $(find /external_sd /sdcard -type f -iname open_gapps-*.zip 2>/dev/null); do
-	if [ "$(unzip -pqqo "$File" g.prop 2>/dev/null | sed -n '/ro.addon.arch/s/.*=//p')" = "$ARCH" ] \
-		&& [ "$(unzip -pqqo "$File" g.prop 2>/dev/null | sed -n '/ro.addon.sdk/s/.*=//p')" = "$API" ]; then
-			FoundOpenGA_VER="$(unzip -pqqo "$File" g.prop 2>/dev/null | sed -n '/ro.addon.open_version/s/.*=//p')"
-			if [ "$FoundOpenGA_VER" -ge "$CurOpenGA_VER" ]; then
-				CurOpenGA_VER=$FoundOpenGA_VER
-				LatestZip="$File"
-			fi
-	fi
+for f in $(find /external_sd /sdcard -type f -iname open_gapps-*.zip 2>/dev/null); do
+  if [ "$(unzip -pqqo "$f" g.prop 2>/dev/null | sed -n '/ro.addon.arch/s/.*=//p')" = "$ARCH" ] \
+    && [ "$(unzip -pqqo "$f" g.prop 2>/dev/null | sed -n '/ro.addon.sdk/s/.*=//p')" = "$API" ]
+  then
+    FoundOpenGA_VER="$(unzip -pqqo "$f" g.prop 2>/dev/null | sed -n '/ro.addon.open_version/s/.*=//p')"
+    if [ "$FoundOpenGA_VER" -ge "$CurOpenGA_VER" ]; then
+      CurOpenGA_VER=$FoundOpenGA_VER
+      LatestZip="$f"
+    fi
+  fi
 done
-IFS=$OIFS
+IFS=$oIFS
 
 [ -z "$LatestZip" ] && exxit 1
 [ -f "$CurVerInfo" ] && OpenGA_VER="`grep_prop 'ro.addon.open_version' $CurVerInfo`" || OpenGA_VER=0
 
 if [ "$CurOpenGA_VER" -gt "$OpenGA_VER" ]; then
-	GAppsZip="$LatestZip"
+  GAppsZip="$LatestZip"
 else
-	if [ -f /data/r ]; then
-		Reinstall=true
-		GAppsZip="$LatestZip"
-		rm /data/r
-	else
-		exxit 0
-	fi
+  [ -f /data/r ] && GAppsZip="$LatestZip" || exxit 0
 fi
-wipe_MODPATH
+wipe_modPath
 
 OpenGAPackage="`unzip -pqo "$GAppsZip" g.prop | sed -n '/ro.addon.open_type/s/.*=//p'`-$CurOpenGA_VER"
-ui_print " "
-ui_print "- Latest package found: $GAppsZip"
-ui_print " "
 
-# System packages
+# pseudo system packages
 sysApp="$(ls -d /system/app/*)"
 sysPrivApp="$(ls -d /system/priv-app/*)"
 vendorApp="$(ls -d /vendor/bundled-app/* 2>/dev/null)"
 
-# Bind mount NewPersistPath NewSystemPath & NewVendorPath
-ui_print "- Bind-mounting pseudo /persist, /system & /vendor paths"
-ui_print " "
+# prepare NewSystemPath & NewVendorPath
 cp -af /system/build.prop $INSTALLER/build.prop
 umount -l /system_root 2>/dev/null
 umount -l /system 2>/dev/null
 mount_check /system
-NewPersistPath=$MODPATH/.persist
-NewSystemPath=$MODPATH/system
+NewSystemPath=$modPath/system
 NewVendorPath=$NewSystemPath/vendor
-mkdir $NewPersistPath /persist 2>/dev/null
 mkdir $NewSystemPath
-umount -l /persist 2>/dev/null
-mount_check /persist
-bind_mount $NewPersistPath /persist
 bind_mount $NewSystemPath /system
 if [ -d /vendor ]; then
-	umount -l /vendor 2>/dev/null
-	mount_check /vendor
-	mkdir $NewVendorPath
-	bind_mount $NewVendorPath /vendor
+  umount -l /vendor 2>/dev/null
+  mount_check /vendor
+  mkdir $NewVendorPath
+  bind_mount $NewVendorPath /vendor
 fi
 
-# Create pseudo-system packages
+# create pseudo-system packages
 for d in $sysApp $sysPrivApp $vendorApp; do
-  mktouch ${MODPATH}$d/.replace
+  mktouch ${modPath}$d/.replace
 done
 
-# Extract OpenGApps install scripts
-ui_print "- Extracting $(basename $GAppsZip) install scripts"
-ui_print " "
+# extract OpenGApps install scripts
 GAppsTmpDir="$INSTALLER/OpenGApps"
 GAppsInstaller=$GAppsTmpDir/META-INF/com/google/android/update-binary
 mkdir "$GAppsTmpDir" 2>/dev/null
@@ -444,19 +426,17 @@ unzip -o "$GAppsZip" "META-INF/*" -d "$GAppsTmpDir" >&2
 unzip -o "$GAppsZip" installer.sh -d /tmp >&2
 
 
-# Patch GApps install scripts
-ui_print "- Patching installer.sh & update-binary"
-
+# patch GApps install scripts
 sed -i '/SYSTEM=\/system\/system/s/m\/system/m/; \
-	/abpartition=true/s/true/false/; \
-	/ui_print.*ounting/d; \
-	/ui_print.*lation.*omplete/d; \
-	/ui_print.*sys.*space.*tions/d; \
-	/ui_print.*emoving/d' /tmp/installer.sh
-	
+  /abpartition=true/s/true/false/; \
+  /ui_print.*ounting/d; \
+  /ui_print.*lation.*omplete/d; \
+  /ui_print.*sys.*space.*tions/d; \
+  /ui_print.*emoving/d' /tmp/installer.sh
+
 if grep -q slot_suffix /proc/cmdline; then
-	sed -i '/ln \-/s/\/system\/\$libfolder/\/system\/system\/\$libfolder/g' /tmp/installer.sh
-	sed -i '/ln \-/s/\$SYSTEM\/\$libfolder/\/system\/system\/\$libfolder/g' /tmp/installer.sh
+  sed -i '/ln \-/s/\/system\/\$libfolder/\/system\/system\/\$libfolder/g' /tmp/installer.sh
+  sed -i '/ln \-/s/\$SYSTEM\/\$libfolder/\/system\/system\/\$libfolder/g' /tmp/installer.sh
 fi
 
 sed -i '/vrmode_compat=false/a faceunlock_compat=true' /tmp/installer.sh
@@ -465,43 +445,37 @@ sed -i '/vrmode_compat=false/s/false/true/' /tmp/installer.sh
 sed -i 's/unzip \-o/unzip \-n/' $GAppsInstaller
 
 
-# (Re-)Install OpenGApps
-ui_print " "
-$Reinstall && ui_print "- Re-installing $(basename $GAppsZip)" \
-	|| ui_print "- Installing $(basename $GAppsZip)"
+# (re-)Install OpenGApps
 cp -af $INSTALLER/build.prop $NewSystemPath
 set_perm $GAppsInstaller 0 0 755
 set_perm /tmp/installer.sh 0 0 755
-sh $GAppsInstaller dummy "$OOUTFD" "$GAppsZip"
+sh $GAppsInstaller dummy "$oOutFD" "$GAppsZip"
 
-# Disable conflicting and/or unwanted system APKs
+# disable conflicting and/or unwanted system APKs
 { umount -l /system
-umount -l /vendor
-umount -l /persist; } 2>/dev/null
-mount_partitions no_notice
-ui_print "- Pseudo-removing conflicting/unwanted system apps"
+umount -l /vendor; } 2>/dev/null
+mount_partitions
 disable_apks
 
-# Update module.prop to reflect OpenGApps version
+# update module.prop to reflect OpenGApps version
 sed -i "2s/$/ ($OpenGAPackage)/" $INSTALLER/module.prop
 
-# Cleanup
-rm $MODPATH/system/build.prop
-rm -rf $MODPATH/system/addon.d
-[ "`ls -A $NewPersistPath`" ] || rm -rf $NewPersistPath
+# cleanup
+rm $modPath/system/build.prop
+rm -rf $modPath/system/addon.d
 [ "`ls -A $NewVendorPath`" ] || rm -rf $NewVendorPath
 
-# Auto Mount
-mktouch $MODPATH/auto_mount
+# auto Mount
+mktouch $modPath/auto_mount
 
-# Module info
-cp $INSTALLER/module.prop $MODPATH/
+# module info
+cp $INSTALLER/module.prop $modPath/
 
-# Install perms granting tool (gp)
-[[ ! -d /system/xbin && ! -d /system_root/system/xbin ]] && gpDir=bin || gpDir=xbin
-mkdir $MODPATH/system/$gpDir 2>/dev/null
-mv $INSTALLER/gp $MODPATH/system/$gpDir/
-set_perms $MODPATH/system/$gpDir/gp 0 0 755
+# etc must be ready earlier to prevent runtime permission issues
+cp -af $modPath/system/etc /data/adb/magisk_simple/system
+cp -af $modPath/system/etc /cache/magisk_mount/system
+mv $INSTALLER/service.sh $modPath/
+set_perm $modPath/service.sh 0 0 755
 
 unmount_all
 shrink_img
