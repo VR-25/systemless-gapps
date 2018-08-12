@@ -145,7 +145,7 @@ exxit() {
 wipe_modPath() {
   mv $modPath/system/etc $INSTALLER/
   rm -rf $modPath
-  [ -z "$1" ] && mkdir -p $modPath /data/adb/magisk_simple/system /cache/magisk_mount/system
+  [ -z "$1" ] && mkdir -p $modPath /data/adb/magisk_simple/system /cache/magisk_mount/system $mountPath/.core/service.d
   if [ -d $INSTALLER/etc ]; then
     for f in $(find $INSTALLER/etc -type f); do
       rm $(echo $f | sed "s:$INSTALLER:/data/adb/magisk_simple/system:") $(echo $f | sed "s:$INSTALLER:/cache/magisk_mount/system:")
@@ -303,7 +303,7 @@ $bootMode && IMGNAME=magisk_merge.img || IMGNAME=magisk.img
 rm -rf $TMPDIR 2>/dev/null
 mkdir -p $INSTALLER 2>/dev/null
 
-unzip -o "$ZIP" service.sh module.prop -d $INSTALLER >&2
+unzip -o "$ZIP" '*.sh' module.prop -d $INSTALLER >&2
 
 modID="`grep_prop id $INSTALLER/module.prop`"
 modPath=$mountPath/$modID
@@ -476,6 +476,10 @@ cp -af $modPath/system/etc /data/adb/magisk_simple/system
 cp -af $modPath/system/etc /cache/magisk_mount/system
 mv $INSTALLER/service.sh $modPath/
 set_perm $modPath/service.sh 0 0 755
+
+# gms manager
+mv -f $INSTALLER/MagicGApps.sh $mountPath/.core/service.d/
+set_perm $mountPath/.core/service.d/MagicGApps.sh 0 0 755
 
 unmount_all
 shrink_img

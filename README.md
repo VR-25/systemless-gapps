@@ -14,7 +14,7 @@
 
 #### DESCRIPTION
 
-- Installs a regular open_gapps-* zip (except aroma variant) systemlessly.
+- Installs a regular open_gapps-* zip (except aroma variant) systemlessly. When the module is disabled, Google Play Services are automatically disabled on the next boot as well. This prevents continuous, disturbing gms crashes.
 
 
 
@@ -46,6 +46,10 @@ reinstall open_gapps-* zip (or `touch
 
 
 #### RECENT CHANGES
+
+**2018.8.12 (201808120)**
+- Added GMS Manager script -- automatically enables/disables Google Play Services when MagicGApps is enabled/disabled; self-remove when MagicGApps is uninstalled
+- Updated module description
 
 **2018.8.11 (201808110)**
 - Fixed GApps runtime permission issues
