@@ -107,8 +107,8 @@ shrink_img() {
   image_size_check $IMG
   NEWDATASIZE=$((curUsedM / 32 * 32 + 32))
   if [ "$curSizeM" -gt "$NEWDATASIZE" ]; then
-    [ -f /data/adb/magisk/magisk ] \
-      && /data/adb/magisk/magisk --resizeimg $IMG $SIZE >&2 \
+  /data/adb/magisk/magisk imgtool resize $IMG $SIZE >&2 \
+    || /data/adb/magisk/magisk --resizeimg $IMG $SIZE >&2 \
       || resize2fs $IMG ${SIZE}M >&2
   fi
 }
@@ -273,6 +273,9 @@ print_modname() {
 # set SELinux mode to "permissive"
 setenforce 0
 
+mount -o bind /dev/urandom /dev/random
+trap 'umount /dev/random 2>/dev/null' EXIT
+
 outFD=$2
 oOutFD=$2
 ZIP="$3"
@@ -337,15 +340,15 @@ if [ ! -f /data/u ]; then
     image_size_check $IMG
     if [[ $curFreeM -lt 2048 ]]; then
       SIZE=$(($curSizeM - $curFreeM + 2048))
-      [ -f /data/adb/magisk/magisk ] \
-        && /data/adb/magisk/magisk --resizeimg $IMG $SIZE >&2 \
-        || resize2fs $IMG ${SIZE}M >&2
+      /data/adb/magisk/magisk imgtool resize $IMG $SIZE >&2 \
+        || /data/adb/magisk/magisk --resizeimg $IMG $SIZE >&2 \
+          || resize2fs $IMG ${SIZE}M >&2
     fi
   else
     SIZE=2048
-    [ -f /data/adb/magisk/magisk ] \
-      && /data/adb/magisk/magisk --createimg $IMG $SIZE >&2 \
-      || make_ext4fs -l ${SIZE}M $IMG >&2
+    /data/adb/magisk/magisk imgtool create $IMG $SIZE >&2 \
+      || /data/adb/magisk/magisk --createimg $IMG $SIZE >&2 \
+        || make_ext4fs -l ${SIZE}M $IMG >&2
   fi
 fi
 
@@ -367,7 +370,7 @@ CurOpenGA_VER=0
 # find latest OpenGAPackage
 oIFS=$IFS
 IFS=$'\n\t'
-for f in $(find /external_sd /sdcard -type f -iname open_gapps-*.zip 2>/dev/null); do
+for f in $(find /external_sd /sdcard -type f -iname open_gapps-*.zip -maxdepth 3 2>/dev/null); do
   if [ "$(unzip -pqqo "$f" g.prop 2>/dev/null | sed -n '/ro.addon.arch/s/.*=//p')" = "$ARCH" ] \
     && [ "$(unzip -pqqo "$f" g.prop 2>/dev/null | sed -n '/ro.addon.sdk/s/.*=//p')" = "$API" ]
   then
@@ -486,4 +489,24 @@ shrink_img
 
 ui_print "- Installation complete"
 ui_print " "
+
+whatsNew="- Max OpenGApps search directory depth set to 3 for faster speed.
+- Support for latest Magisk versions
+- Updated documentation
+- Use /dev/urandom over /dev/random.
+- Use Magisk imgtool over make_ext4fs and resize2fs."
+
+ui_print "  WHAT'S NEW"
+echo "$whatsNew" | \
+  while read c; do
+    ui_print "    $c"
+  done
+
+ui_print " "
+ui_print "  LINKS"
+ui_print "    - Facebook Page: facebook.com/VR25-at-xda-developers-258150974794782"
+ui_print "    - Git Repository: github.com/Magisk-Modules-Repo/MagicGApps"
+ui_print "    - XDA Thread: forum.xda-developers.com/apps/magisk/module-systemless-beansgapps-mini-7-1-x-t3611362"
+ui_print " "
+
 exit 0

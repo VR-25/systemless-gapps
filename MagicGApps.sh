@@ -11,7 +11,7 @@ main() {
   modPath=/sbin/.core/img/$modID
    [ -f $modPath/module.prop ] || modPath=/magisk/$modID
   
-  # self-destruct if MagicGApps is not installed
+  # self-destruct if $modID is not installed
   [ -f $modPath/module.prop ] || { rm $0; exit 0; }
 
   # wait for main system services to start
